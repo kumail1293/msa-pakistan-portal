@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Typecheck, tests & audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reads nothing itself; `version` is pinned to the exact pnpm from the
+      # packageManager field so the lockfile resolves identically to local dev.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Vite 7 requires Node 20.19+ / 22.12+; 22 is the current LTS.
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Run tests
+        run: pnpm test
+
+      # Gate on critical vulnerabilities only. The audit still reports the
+      # remaining high/moderate advisories in the step below (and the log),
+      # but CI must not be permanently red over advisories that have no
+      # published fix (e.g. the lodash family, whose "patched 4.18.0" does
+      # not exist on npm - latest is 4.17.21).
+      - name: Audit (critical gate)
+        run: pnpm audit --prod --audit-level=critical
+
+      # Full report for every run: never fails the build, always visible in
+      # the step log so new high/moderate advisories stay on the radar.
+      - name: Audit (full report)
+        if: always()
+        continue-on-error: true
+        run: pnpm audit --prod

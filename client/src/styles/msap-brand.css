@@ -1,0 +1,828 @@
+:root {
+  --msap-navy: #1B355E;
+  --msap-navy-deep: #122746;
+  --msap-navy-soft: #294A78;
+
+  --msap-teal: #106E5B;
+  --msap-teal-bright: #138A73;
+  --msap-teal-soft: #E7F4F0;
+  --msap-teal-pale: #F3FAF8;
+
+  --msap-ink: #132238;
+  --msap-body: #344A61;
+  --msap-muted: #5D7086;
+
+  --msap-border: #D5E2DE;
+  --msap-border-strong: #BFD4CD;
+
+  --msap-white: #FFFFFF;
+}
+
+
+/* =========================================================
+   PAGE BACKGROUND
+   ========================================================= */
+
+.msap-page,
+.msap-membership-form {
+  --msap-focus: rgba(16, 110, 91, 0.16);
+
+  background:
+    radial-gradient(
+      circle at 6% 4%,
+      rgba(19, 138, 115, 0.14),
+      transparent 25%
+    ),
+    radial-gradient(
+      circle at 96% 8%,
+      rgba(27, 53, 94, 0.12),
+      transparent 26%
+    ),
+    linear-gradient(
+      180deg,
+      #FAFDFC 0%,
+      #F4F8F7 42%,
+      #EEF5F2 100%
+    );
+}
+
+
+.msap-page::before,
+.msap-page::after,
+.msap-membership-form::before,
+.msap-membership-form::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.28;
+  animation: msapFloat 16s ease-in-out infinite alternate;
+}
+
+
+.msap-page::before,
+.msap-membership-form::before {
+  width: 220px;
+  height: 220px;
+  top: 22vh;
+  left: -90px;
+  background: rgba(16, 110, 91, 0.16);
+}
+
+
+.msap-page::after,
+.msap-membership-form::after {
+  width: 260px;
+  height: 260px;
+  top: 58vh;
+  right: -110px;
+  background: rgba(27, 53, 94, 0.13);
+  animation-delay: -6s;
+}
+
+
+.msap-page > *,
+.msap-membership-form > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* =========================================================
+   HERO
+   ========================================================= */
+
+.msap-hero {
+  isolation: isolate;
+  position: relative;
+
+  box-shadow:
+    0 28px 80px -45px rgba(18, 39, 70, 0.55),
+    0 8px 24px rgba(16, 110, 91, 0.08);
+}
+
+
+.msap-hero::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.18),
+      transparent 28%,
+      transparent 68%,
+      rgba(255, 255, 255, 0.10)
+    );
+
+  opacity: 0.9;
+}
+
+
+.msap-hero::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -30%;
+  width: 28%;
+  height: 100%;
+  pointer-events: none;
+
+  transform: skewX(-18deg);
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.14),
+      transparent
+    );
+
+  animation: msapSheen 9s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   HERO LOGO
+   IMPORTANT:
+   No white box behind the white logo.
+   ========================================================= */
+
+.msap-logo-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 0;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+
+.msap-logo-shell img,
+.msap-logo-shell svg {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+
+/* =========================================================
+   HERO TYPOGRAPHY
+   IMPORTANT:
+   Only the HERO h1 is white.
+   All other content headings remain navy.
+   ========================================================= */
+
+.msap-membership-form .msap-hero h1 {
+  color: #FFFFFF !important;
+}
+
+
+.msap-membership-form .msap-hero h2,
+.msap-membership-form .msap-hero h3,
+.msap-membership-form .msap-hero h4,
+.msap-membership-form .msap-hero h5,
+.msap-membership-form .msap-hero h6 {
+  color: #FFFFFF !important;
+}
+
+
+/* =========================================================
+   CONTENT HEADINGS
+   NOTE: only the explicit .msap-section-title helper and the
+   membership form scope headings here. All other pages set
+   their heading colors inline, so we must NOT override them
+   with an app-wide !important rule.
+   ========================================================= */
+
+.msap-section-title,
+.msap-membership-form h2,
+.msap-membership-form h3,
+.msap-membership-form h4,
+.msap-membership-form h5,
+.msap-membership-form h6 {
+  color: var(--msap-navy) !important;
+}
+
+
+/* =========================================================
+   FORM FIELDS
+   ========================================================= */
+
+.msap-page input,
+.msap-page textarea,
+.msap-page [role="combobox"],
+.msap-membership-form input,
+.msap-membership-form textarea,
+.msap-membership-form [role="combobox"] {
+  color: var(--msap-ink);
+
+  border-color: var(--msap-border);
+
+  background: rgba(255, 255, 255, 0.98);
+}
+
+
+.msap-page input::placeholder,
+.msap-page textarea::placeholder,
+.msap-membership-form input::placeholder,
+.msap-membership-form textarea::placeholder {
+  color: #72849A;
+}
+
+
+.msap-page input:focus,
+.msap-page textarea:focus,
+.msap-page [role="combobox"]:focus-visible,
+.msap-membership-form input:focus,
+.msap-membership-form textarea:focus,
+.msap-membership-form [role="combobox"]:focus-visible {
+  border-color: var(--msap-teal) !important;
+
+  box-shadow:
+    0 0 0 4px var(--msap-focus),
+    0 8px 22px rgba(27, 53, 94, 0.06);
+
+  outline: none;
+}
+
+
+.msap-page input:hover,
+.msap-page textarea:hover,
+.msap-page [role="combobox"]:hover,
+.msap-membership-form input:hover,
+.msap-membership-form textarea:hover,
+.msap-membership-form [role="combobox"]:hover {
+  border-color: var(--msap-border-strong);
+}
+
+
+/* =========================================================
+   REQUIRED MARKERS
+   ========================================================= */
+
+.msap-page .msap-required,
+.msap-membership-form .msap-required {
+  color: var(--msap-teal-bright) !important;
+}
+
+
+/* =========================================================
+   OPTION CARDS
+   ========================================================= */
+
+.msap-option-card {
+  position: relative;
+  overflow: hidden;
+
+  color: var(--msap-navy) !important;
+
+  border-color: var(--msap-border) !important;
+
+  background: #FFFFFF !important;
+
+  box-shadow:
+    0 8px 22px rgba(27, 53, 94, 0.035);
+}
+
+
+.msap-option-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      110deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.68) 45%,
+      transparent 72%
+    );
+
+  transform: translateX(-120%);
+  transition: transform 0.65s ease;
+}
+
+
+.msap-option-card:hover::after {
+  transform: translateX(120%);
+}
+
+
+.msap-option-card:hover {
+  border-color: var(--msap-border-strong) !important;
+
+  background: #FBFEFD !important;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 12px 28px rgba(16, 110, 91, 0.08);
+}
+
+
+.msap-option-card.msap-option-selected {
+  border-color: var(--msap-teal) !important;
+
+  background: var(--msap-teal-soft) !important;
+
+  box-shadow:
+    0 10px 26px rgba(16, 110, 91, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+
+.msap-option-card span {
+  color: var(--msap-navy) !important;
+}
+
+
+/* =========================================================
+   SELECT / DROPDOWN
+   ========================================================= */
+
+.msap-page [role="option"][data-highlighted],
+.msap-membership-form [role="option"][data-highlighted] {
+  background: var(--msap-teal-soft) !important;
+  color: var(--msap-navy) !important;
+}
+
+
+.msap-page [role="option"][data-state="checked"],
+.msap-membership-form [role="option"][data-state="checked"] {
+  background: #D9EEE8 !important;
+  color: var(--msap-navy) !important;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   PROGRESS
+   ========================================================= */
+
+.msap-progress-shell {
+  box-shadow:
+    0 20px 44px -34px rgba(27, 53, 94, 0.45);
+}
+
+
+.msap-step-dot {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 5px 14px rgba(27, 53, 94, 0.07);
+}
+
+
+.msap-step-active {
+  box-shadow:
+    0 0 0 5px rgba(16, 110, 91, 0.10),
+    0 9px 22px rgba(16, 110, 91, 0.18);
+}
+
+
+.msap-step-complete {
+  box-shadow:
+    0 7px 18px rgba(19, 138, 115, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+
+.msap-progress-fill {
+  position: relative;
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--msap-navy) 0%,
+      var(--msap-teal) 52%,
+      var(--msap-teal-bright) 100%
+    );
+}
+
+
+.msap-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -20%;
+  width: 18%;
+  height: 100%;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.42),
+      transparent
+    );
+
+  animation: msapProgressSheen 3.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   STEP ANIMATION
+   ========================================================= */
+
+.msap-step-content {
+  animation:
+    msapStepIn 0.28s ease-out both;
+}
+
+
+/* =========================================================
+   PRIMARY BUTTONS
+   ========================================================= */
+
+.msap-primary-action {
+  position: relative;
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--msap-navy) 0%,
+      var(--msap-teal) 100%
+    ) !important;
+
+  color: #FFFFFF !important;
+
+  box-shadow:
+    0 12px 28px rgba(16, 110, 91, 0.24);
+}
+
+
+.msap-primary-action::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      110deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.18) 50%,
+      transparent 80%
+    );
+
+  transform: translateX(-120%);
+  transition: transform 0.5s ease;
+}
+
+
+.msap-primary-action:hover::after {
+  transform: translateX(120%);
+}
+
+
+.msap-primary-action:hover {
+  box-shadow:
+    0 16px 34px rgba(16, 110, 91, 0.28) !important;
+
+  transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   INFORMATION CARDS
+   ========================================================= */
+
+.msap-info-card {
+  border-color: #C9D9E9;
+
+  background:
+    linear-gradient(
+      135deg,
+      #F0F5F9 0%,
+      #F8FBFA 100%
+    );
+}
+
+
+.msap-payment-card {
+  position: relative;
+  overflow: hidden;
+
+  border-color: #BFDCD3;
+
+  background:
+    radial-gradient(
+      circle at 85% 20%,
+      rgba(19, 138, 115, 0.10),
+      transparent 26%
+    ),
+    linear-gradient(
+      135deg,
+      #EAF7F3 0%,
+      #F7FBFA 70%
+    );
+}
+
+
+.msap-payment-card::after {
+  content: "";
+  position: absolute;
+
+  width: 180px;
+  height: 180px;
+
+  right: -70px;
+  bottom: -95px;
+
+  border-radius: 9999px;
+  border: 24px solid rgba(16, 110, 91, 0.07);
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   BANK / PAYMENT VALUES
+   ========================================================= */
+
+.msap-bank-value,
+.msap-payment-value {
+  color: var(--msap-navy) !important;
+}
+
+
+/* =========================================================
+   UPLOAD CARDS
+   ========================================================= */
+
+.msap-upload-card {
+  border-color: #C6D9D3 !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      #FBFDFC 0%,
+      #F3F8F6 100%
+    );
+}
+
+
+.msap-upload-card:hover {
+  border-color: #9AC8BB !important;
+
+  box-shadow:
+    0 14px 30px rgba(16, 110, 91, 0.08);
+
+  transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   SHARED PAGE SHELL
+   (used across the whole portal for a consistent MSAP look)
+   ========================================================= */
+
+.msap-card {
+  border: 1px solid var(--msap-border);
+  border-radius: 1.25rem;
+  background: #ffffff;
+  box-shadow:
+    0 20px 50px -38px rgba(27, 53, 94, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.msap-card-hover {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.msap-card-hover:hover {
+  border-color: #9ac8bb;
+  transform: translateY(-2px);
+  box-shadow:
+    0 26px 60px -40px rgba(16, 110, 91, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.msap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 9999px;
+  border: 1px solid #a8d8cd;
+  background: var(--msap-teal-soft);
+  color: var(--msap-teal);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.msap-btn-outline {
+  border: 1px solid var(--msap-border-strong);
+  background: #ffffff;
+  color: var(--msap-teal);
+  transition:
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.msap-btn-outline:hover {
+  background: var(--msap-teal-soft);
+}
+
+/* =========================================================
+   GENERAL BUTTON TRANSITIONS
+   ========================================================= */
+
+.msap-page button:not(:disabled),
+.msap-membership-form button:not(:disabled) {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+
+/* =========================================================
+   KEYBOARD FOCUS
+   ========================================================= */
+
+.msap-page [data-radix-collection-item]:focus-visible,
+.msap-membership-form [data-radix-collection-item]:focus-visible {
+  outline: 2px solid var(--msap-teal-bright);
+  outline-offset: 3px;
+}
+
+
+/* =========================================================
+   ANIMATIONS
+   ========================================================= */
+
+@keyframes msapFloat {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  to {
+    transform: translate3d(18px, -14px, 0) scale(1.08);
+  }
+}
+
+
+@keyframes msapSheen {
+  0%,
+  65%,
+  100% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+
+  78% {
+    transform: translateX(520%) skewX(-18deg);
+  }
+}
+
+
+@keyframes msapProgressSheen {
+  0%,
+  50%,
+  100% {
+    transform: translateX(-130%);
+  }
+
+  70% {
+    transform: translateX(650%);
+  }
+}
+
+
+@keyframes msapStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 639px) {
+  .msap-hero::after {
+    display: none;
+  }
+
+  .msap-logo-shell {
+    width: 100%;
+    height: auto;
+    min-height: 72px;
+    padding: 0;
+  }
+
+  .msap-logo-shell img,
+  .msap-logo-shell svg {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 72px;
+  }
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+/* =========================================================
+   LANDING PAGE
+   ========================================================= */
+
+.msap-landing-rise {
+  animation: msapLandingRise 0.7s ease-out both;
+}
+
+.msap-landing-cta {
+  box-shadow:
+    0 14px 30px rgba(27, 53, 94, 0.25);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.msap-landing-cta:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 18px 36px rgba(16, 110, 91, 0.35);
+}
+
+@keyframes msapLandingRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes msapSpin {
+  from {
+    transform: translateX(-50%) rotate(0deg);
+  }
+
+  to {
+    transform: translateX(-50%) rotate(360deg);
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .msap-page::before,
+  .msap-page::after,
+  .msap-membership-form::before,
+  .msap-membership-form::after,
+  .msap-hero::after,
+  .msap-progress-fill::after {
+    animation: none !important;
+  }
+
+  .msap-landing-rise,
+  [class*="animate-["] {
+    animation: none !important;
+  }
+
+  .msap-step-content {
+    animation: none !important;
+  }
+
+  .msap-page *,
+  .msap-page *::before,
+  .msap-page *::after,
+  .msap-membership-form *,
+  .msap-membership-form *::before,
+  .msap-membership-form *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

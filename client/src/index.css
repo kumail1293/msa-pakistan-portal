@@ -1,0 +1,256 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/msap-brand.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* =========================================================
+   MSAP PAKISTAN BRAND — light theme (matches /membership)
+   Navy #1B355E · Teal #106E5B / #138A73 · Soft mint #E7F4F0
+   ========================================================= */
+
+:root {
+  --radius: 0.75rem;
+
+  --background: #f4f8f7;
+  --foreground: #132238;
+  --card: #ffffff;
+  --card-foreground: #132238;
+  --popover: #ffffff;
+  --popover-foreground: #132238;
+  --primary: #1b355e;
+  --primary-foreground: #ffffff;
+  --secondary: #e7f4f0;
+  --secondary-foreground: #106e5b;
+  --muted: #e9f0ee;
+  --muted-foreground: #5d7086;
+  --accent: #138a73;
+  --accent-foreground: #ffffff;
+  --destructive: #c0392b;
+  --destructive-foreground: #ffffff;
+  --border: #d9e4e1;
+  --input: #d5e2de;
+  --ring: #138a73;
+
+  --chart-1: #1b355e;
+  --chart-2: #138a73;
+  --chart-3: #fbbf24;
+  --chart-4: #294a78;
+  --chart-5: #0e5d4d;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #132238;
+  --sidebar-primary: #1b355e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e7f4f0;
+  --sidebar-accent-foreground: #106e5b;
+  --sidebar-border: #d9e4e1;
+  --sidebar-ring: #138a73;
+}
+
+.dark {
+  /* The portal is a light-theme application; the .dark class mirrors the
+     same MSAP palette so no page can fall back to an unthemed look. */
+  --radius: 0.75rem;
+
+  --background: #f4f8f7;
+  --foreground: #132238;
+  --card: #ffffff;
+  --card-foreground: #132238;
+  --popover: #ffffff;
+  --popover-foreground: #132238;
+  --primary: #1b355e;
+  --primary-foreground: #ffffff;
+  --secondary: #e7f4f0;
+  --secondary-foreground: #106e5b;
+  --muted: #e9f0ee;
+  --muted-foreground: #5d7086;
+  --accent: #138a73;
+  --accent-foreground: #ffffff;
+  --destructive: #c0392b;
+  --destructive-foreground: #ffffff;
+  --border: #d9e4e1;
+  --input: #d5e2de;
+  --ring: #138a73;
+
+  --chart-1: #1b355e;
+  --chart-2: #138a73;
+  --chart-3: #fbbf24;
+  --chart-4: #294a78;
+  --chart-5: #0e5d4d;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #132238;
+  --sidebar-primary: #1b355e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e7f4f0;
+  --sidebar-accent-foreground: #106e5b;
+  --sidebar-border: #d9e4e1;
+  --sidebar-ring: #138a73;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+    background:
+      radial-gradient(circle at 6% 4%, rgba(19, 138, 115, 0.1), transparent 26%),
+      radial-gradient(circle at 96% 10%, rgba(27, 53, 94, 0.09), transparent 28%),
+      linear-gradient(180deg, #fafdfc 0%, #f4f8f7 42%, #eef5f2 100%);
+    background-attachment: fixed;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1280px;
+    }
+  }
+
+  /* =========================================================
+     MSAP SHARED COMPONENT CLASSES
+     (used by pages that were built on the old "cinematic" set)
+     ========================================================= */
+
+  .hero-title {
+    @apply text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#1b355e] text-center leading-tight tracking-tight;
+  }
+
+  .section-title {
+    @apply text-2xl md:text-3xl font-extrabold text-[#1b355e] text-center mb-8 tracking-tight;
+  }
+
+  .stat-card {
+    @apply bg-white border border-[#d9e4e1] rounded-2xl p-6 transition-all duration-300 hover:border-[#9ac8bb] hover:shadow-lg;
+    box-shadow:
+      0 16px 40px -28px rgba(27, 53, 94, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .accent-line {
+    @apply h-1 w-16 rounded-full;
+    background: linear-gradient(90deg, #1b355e 0%, #138a73 100%);
+  }
+
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-xl border border-[#d9e4e1] rounded-2xl;
+    box-shadow:
+      0 16px 40px -28px rgba(27, 53, 94, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-br from-[#1b355e] to-[#106e5b] text-white font-semibold px-6 py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl;
+    box-shadow: 0 12px 28px rgba(16, 110, 91, 0.24);
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 16px 34px rgba(16, 110, 91, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    @apply bg-white border border-[#bfd4cd] text-[#106e5b] font-semibold px-6 py-3 rounded-xl transition-all duration-300 hover:bg-[#e7f4f0];
+  }
+
+  .input-cinematic {
+    @apply bg-white border border-[#d5e2de] rounded-xl px-4 py-2 text-[#132238] placeholder:text-[#72849a] transition-all duration-300 focus:border-[#106e5b] focus:ring-2 focus:ring-[#138a73]/20 focus:outline-none;
+  }
+
+  .card-cinematic {
+    @apply bg-white border border-[#d9e4e1] rounded-2xl p-6 transition-all duration-300 hover:border-[#9ac8bb];
+    box-shadow:
+      0 20px 50px -38px rgba(27, 53, 94, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .badge-accent {
+    @apply inline-block px-3 py-1 rounded-full text-sm font-medium bg-[#e7f4f0] text-[#106e5b] border border-[#a8d8cd];
+  }
+
+  .divider-accent {
+    @apply h-px;
+    background: linear-gradient(90deg, transparent, rgba(19, 138, 115, 0.35), transparent);
+  }
+}
