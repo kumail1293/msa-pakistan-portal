@@ -82,6 +82,7 @@ export const users = mysqlTable(
     emailIdx: index("email_idx").on(table.email),
     cnicIdx: index("cnic_idx").on(table.cnic),
     membershipIdIdx: index("membership_id_idx").on(table.membershipId),
+    setupTokenIdx: index("setup_token_idx").on(table.setupTokenHash),
   })
 );
 
@@ -523,3 +524,55 @@ export const policyParameters = mysqlTable(
 
 export type PolicyParameter = typeof policyParameters.$inferSelect;
 export type InsertPolicyParameter = typeof policyParameters.$inferInsert;
+
+// ============ MEMBER CARDS (issuance + holder-signature workflow) ============
+//
+// One row per member. The card renders ONLY the approved identity snapshot;
+// holder signatures go through submit → pending → approve/reject; approval
+// (re)issues the card with a new version and a fresh HMAC verification token.
+
+export const memberCards = mysqlTable(
+  "member_cards",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().unique(),
+    version: int("version").default(0).notNull(),
+    holderSignature: json("holderSignature")
+      .$type<{
+        dataUrl: string | null;
+        status: string;
+        submittedAt: Date | null;
+        reviewedAt: Date | null;
+      }>()
+      .default({
+        dataUrl: null,
+        status: "none",
+        submittedAt: null,
+        reviewedAt: null,
+      }),
+    identitySnapshot: json("identitySnapshot")
+      .$type<{
+        memberName: string;
+        institution: string;
+        discipline: string;
+        yearOfStudy: string;
+        localCouncil: string;
+        graduationYear: number | null;
+        photoUrl: string;
+      }>(),
+    reissueRequested: boolean("reissueRequested").default(false),
+    reissueRequestedAt: timestamp("reissueRequestedAt"),
+    issuedAt: timestamp("issuedAt"),
+    expiresAt: timestamp("expiresAt"),
+    verificationToken: varchar("verificationToken", { length: 255 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index("mc_user_idx").on(table.userId),
+  })
+);
+
+export type MemberCardRow = typeof memberCards.$inferSelect;
+export type InsertMemberCardRow = typeof memberCards.$inferInsert;
+

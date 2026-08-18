@@ -12,8 +12,6 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminCardQueue from "./pages/AdminCardQueue";
 import AdminConfig from "./pages/AdminConfig";
 import AdminLifecycle from "./pages/AdminLifecycle";
-import LiveTracker from "./pages/LiveTracker";
-import InterviewScheduling from "./pages/InterviewScheduling";
 import MembershipForm from "./pages/MembershipForm";
 import Opportunities from "./pages/Opportunities";
 import Voting from "./pages/Voting";
@@ -113,11 +111,6 @@ function Router() {
           <AdminConfig />
         </OfficialLayout>
       </Route>
-      <Route path={"/admin/interviews/schedule"}>
-        <OfficialLayout>
-          <InterviewScheduling />
-        </OfficialLayout>
-      </Route>
       <Route path={"/admin/lifecycle"}>
         <OfficialLayout>
           <AdminLifecycle />
@@ -129,9 +122,6 @@ function Router() {
           <OfficialsManagement />
         </OfficialLayout>
       </Route>
-
-      {/* Live Tracker */}
-      <Route path={"/tracker"} component={LiveTracker} />
 
       {/* 404 */}
       <Route path={"/404"} component={NotFound} />

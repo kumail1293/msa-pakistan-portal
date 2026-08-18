@@ -1,5 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import {
   users,
   localCouncils,
@@ -14,6 +15,8 @@ import {
   configuration,
   auditLog,
   emailQueue,
+  lifecycleCases,
+  memberCards,
   InsertUser,
   User,
   LocalCouncil,
@@ -40,22 +43,58 @@ import {
   InsertAuditLog,
   EmailQueue,
   InsertEmailQueue,
+  MemberCardRow,
+  InsertMemberCardRow,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import * as memberAccounts from "./services/memberAccountService";
 
+// ============================================================================
+// Connection pool
+// ============================================================================
+
+let _pool: mysql.Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
 
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
+/**
+ * Lazily create a MySQL2 connection pool. Returns null when DATABASE_URL is
+ * not configured — callers fall back to the in-memory store.
+ */
+function getPool(): mysql.Pool | null {
+  if (_pool) return _pool;
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  try {
+    _pool = mysql.createPool(url);
+    console.log("[Database] MySQL2 connection pool created.");
+  } catch (error) {
+    console.warn("[Database] Failed to create connection pool:", error);
+    _pool = null;
+  }
+  return _pool;
+}
+
+export function getDb() {
+  if (_db) return _db;
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  try {
+    // Drizzle can connect directly from a URL string
+    _db = drizzle(url);
+    console.log("[Database] Drizzle connected.");
+  } catch (error) {
+    console.warn("[Database] Failed to create Drizzle instance:", error);
+    _db = null;
   }
   return _db;
+}
+
+/**
+ * Returns the raw mysql2 pool for direct SQL operations (used by the
+ * persistence layer for batch upserts).
+ */
+export function getPoolDirect(): mysql.Pool | null {
+  return getPool();
 }
 
 export async function upsertUser(user: InsertUser): Promise<User> {

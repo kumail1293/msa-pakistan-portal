@@ -1,6 +1,5 @@
 import { COOKIE_NAME, UNAUTHED_ERR_MSG } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
 import {
   officialModuleProcedure,
   publicProcedure,
@@ -64,8 +63,6 @@ function shouldReconcile(identifier: string): boolean {
 }
 
 export const appRouter = router({
-  system: systemRouter,
-
   // ============ AUTH ROUTES ============
   auth: router({
     /** Current session user (credentials stripped). */

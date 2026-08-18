@@ -5,12 +5,10 @@
  *   approved member (Google Apps Script) -> account -> setup token -> login.
  *
  * STORAGE
- * The live workspace has no DATABASE_URL configured, and the legacy drizzle
- * migrations do not match drizzle/schema.ts, so this service currently uses an
- * in-process memory store. The store is deliberately small and typed so a
- * Drizzle-backed implementation can replace the memory maps without touching
- * the routers. When a database is provisioned (see docs/PORTAL_BUILD.md),
- * swap the *_memory helpers below for DB queries and run `pnpm db:push`.
+ * Runtime data lives in in-process Maps for fast indexed reads. Every
+ * mutation is persisted to MySQL via `memberStoreDb.ts` (with a JSON-file
+ * backup for local development). On boot the store is restored from MySQL
+ * (falling back to the JSON file when DATABASE_URL is not set).
  *
  * SECURITY
  * - Identity is always derived from the authenticated session server-side;
@@ -2260,6 +2258,19 @@ export function applyStoreState(snapshot: MemberStoreSnapshot): void {
   }
 }
 
+// ============================================================================
+// Persistence (MySQL + JSON-file fallback)
+// ============================================================================
+//
+// When DATABASE_URL is configured, data is persisted to MySQL via the
+// memberStoreDb module. The JSON file (STORE_FILE) serves as a lightweight
+// backup and migration path: at boot we try MySQL first, then fall back to
+// the JSON file. Writes go to both MySQL (async) and the JSON file (sync)
+// so there is always a local fallback if the database is temporarily
+// unreachable.
+
+import { loadStoreFromDb, saveStoreToDb } from "./memberStoreDb";
+
 // Coalesce disk writes: a burst of mutations (e.g. login reconciliation =
 // upsertUser + issueSetupToken + recordLastSignIn) settles into ONE write per
 // event-loop tick, instead of three blocking sync writes per request.
@@ -2267,10 +2278,8 @@ let persistQueued = false;
 let persistDirty = false;
 let persistWarned = false;
 
-function flushStore(): void {
-  persistQueued = false;
-  if (!persistDirty) return;
-  persistDirty = false;
+/** Write the current store state to the JSON file (sync, best-effort). */
+function flushStoreToFile(): void {
   try {
     const dir = path.dirname(STORE_FILE);
     fs.mkdirSync(dir, { recursive: true });
@@ -2281,7 +2290,7 @@ function flushStore(): void {
     fs.renameSync(tmp, STORE_FILE);
     persistWarned = false;
   } catch (error) {
-    console.error("[MemberStore] Failed to persist store:", error);
+    console.error("[MemberStore] Failed to persist store to file:", error);
     if (!persistWarned) {
       persistWarned = true;
       console.warn(
@@ -2289,6 +2298,27 @@ function flushStore(): void {
       );
     }
   }
+}
+
+/** Write the current store state to MySQL (async, best-effort). */
+async function flushStoreToDb(): Promise<void> {
+  try {
+    const snapshot = snapshotStoreState();
+    await saveStoreToDb(snapshot);
+  } catch (error) {
+    console.error("[MemberStoreDb] Failed to persist store to database:", error);
+  }
+}
+
+/** Flush to both the JSON file and MySQL. */
+function flushStore(): void {
+  persistQueued = false;
+  if (!persistDirty) return;
+  persistDirty = false;
+  // Sync write to JSON file (local backup)
+  flushStoreToFile();
+  // Async write to MySQL (durable storage)
+  void flushStoreToDb();
 }
 
 /**
@@ -2325,10 +2355,38 @@ export function restoreStoreFromDisk(): void {
   }
 }
 
+/**
+ * Restore the store from MySQL at boot. Falls back to the JSON file when
+ * the database is unavailable or empty.
+ */
+async function restoreStore(): Promise<void> {
+  if (!persistenceEnabled()) return;
+
+  // Try MySQL first
+  try {
+    const dbSnapshot = await loadStoreFromDb();
+    if (dbSnapshot && dbSnapshot.users.length > 0) {
+      applyStoreState(dbSnapshot);
+      console.log(
+        `[MemberStoreDb] Restored ${dbSnapshot.users.length} member(s) and ${dbSnapshot.cards.length} card record(s) from MySQL`
+      );
+      return;
+    }
+  } catch (error) {
+    console.warn("[MemberStoreDb] MySQL load failed, trying JSON file:", error);
+  }
+
+  // Fall back to JSON file
+  restoreStoreFromDisk();
+}
+
 // Restore at module load (skipped under NODE_ENV=test), then apply the
 // SUPER_ADMIN_EMAIL bootstrap so ops can designate the first super admin.
+// When DATABASE_URL is configured the async MySQL load runs in the
+// background; the JSON file provides immediate state so the server can
+// start accepting requests before the DB round-trip completes.
 restoreStoreFromDisk();
-ensureBootstrapSuperAdmin();
+void restoreStore().then(() => ensureBootstrapSuperAdmin());
 
 // Flush any pending write before the process exits, so the last mutation is
 // not lost on a graceful shutdown/restart (e.g. `tsx watch` restart).
