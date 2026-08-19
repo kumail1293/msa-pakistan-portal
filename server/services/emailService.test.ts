@@ -74,13 +74,15 @@ describe("emailService SMTP configuration", () => {
 
 describe("emailService queue fallback (no database)", () => {
   it("buffers queued emails in the memory outbox", async () => {
+    clearMemoryEmailLog();
     const id = await queueEmail({
       recipientEmail: "student@example.com",
       subject: "[MSA Pakistan] Set Up Your Member Portal Account",
       emailType: "PASSWORD_SETUP",
       htmlBody: "<p>hi</p>",
     });
-    expect(id).not.toBeNull();
+    // Without a database, queueEmail returns null but buffers to the memory outbox
+    expect(id).toBeNull();
     const log = getMemoryEmailLog();
     expect(log).toHaveLength(1);
     expect(log[0]?.subject).toContain("Set Up Your Member Portal Account");

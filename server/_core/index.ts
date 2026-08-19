@@ -99,7 +99,7 @@ async function startServer() {
       return;
     }
     try {
-      const card = buildMemberCard(user.id);
+      const card = await buildMemberCard(user.id);
       if (!card) {
         res.status(404).send("Membership card not found.");
         return;

@@ -1313,7 +1313,7 @@ export async function syncApprovedMember(
 
   const existing = getByMembershipId(membershipId);
   const profile = buildAccountFromLookup(member);
-  const queued = (user: StoredUser, rawToken: string, expiresAt: Date) =>
+  const queued = (user: StoredUser, rawToken: string, expiresAt: Date): Promise<number | null> =>
     queuePasswordSetupEmail({
       memberName: user.name || "MSAP Member",
       membershipId: user.membershipId || membershipId,
@@ -1346,7 +1346,7 @@ export async function syncApprovedMember(
     if (shouldIssue) {
       const issued = issueSetupToken(updated.id);
       if (issued) {
-        queued(updated, issued.rawToken, issued.expiresAt);
+        await queued(updated, issued.rawToken, issued.expiresAt);
         return {
           status: "updated",
           message: "Member account updated; fresh setup link issued.",
@@ -1374,7 +1374,7 @@ export async function syncApprovedMember(
   });
   const issued = issueSetupToken(created.id);
   if (issued) {
-    queued(created, issued.rawToken, issued.expiresAt);
+    await queued(created, issued.rawToken, issued.expiresAt);
   }
 
   if (member.letterUrl) upsertDocument(created.id, "Membership Letter", member.letterUrl, membershipId);
@@ -1430,8 +1430,29 @@ export function buildPortalProfile(user: User): PortalProfile {
 //     fresh HMAC verification token embedded in the QR code
 
 /** National President, term 2025-26 (mirrors CONFIG in the Apps Script). */
-const PRESIDENT_NAME = "Kumail Danial";
-const PRESIDENT_TITLE = "National President";
+import { getPresidentName, getPresidentTitle } from "../config/branding";
+
+/** Default president name (used when branding config is unavailable). */
+const DEFAULT_PRESIDENT_NAME = "Kumail Danial";
+const DEFAULT_PRESIDENT_TITLE = "National President";
+
+/** Get the president name from config (async, with env fallback). */
+async function resolvePresidentName(): Promise<string> {
+  try {
+    return await getPresidentName();
+  } catch {
+    return DEFAULT_PRESIDENT_NAME;
+  }
+}
+
+/** Get the president title from config (async, with env fallback). */
+async function resolvePresidentTitle(): Promise<string> {
+  try {
+    return await getPresidentTitle();
+  } catch {
+    return DEFAULT_PRESIDENT_TITLE;
+  }
+}
 
 /** Max size of an accepted signature image (PNG data URL). */
 const MAX_SIGNATURE_BYTES = 400_000;
@@ -1629,7 +1650,7 @@ function captureIdentity(user: StoredUser): CardIdentitySnapshot {
  * first issuance they mirror the registry-synced account so the draft preview
  * is meaningful. Issuance fields only change on National Office approval.
  */
-export function buildMemberCard(userId: number): MemberCardData | null {
+export async function buildMemberCard(userId: number): Promise<MemberCardData | null> {
   const user = getById(userId);
   if (!user) return null;
   const rec = getCardRecord(userId);
@@ -1668,8 +1689,8 @@ export function buildMemberCard(userId: number): MemberCardData | null {
     reissueRequested: rec.reissueRequested,
     holderSignature: { ...rec.holderSignature },
     president: {
-      name: PRESIDENT_NAME,
-      title: PRESIDENT_TITLE,
+      name: await resolvePresidentName(),
+      title: await resolvePresidentTitle(),
       signatureUrl: currentPresidentSignatureUrl(),
     },
   };
@@ -1680,10 +1701,10 @@ export function buildMemberCard(userId: number): MemberCardData | null {
  * Only PNG data URLs up to 400KB are accepted; the card is not re-issued
  * until the National Office approves.
  */
-export function submitHolderSignature(
+export async function submitHolderSignature(
   userId: number,
   dataUrl: string
-): MemberCardData | null {
+): Promise<MemberCardData | null> {
   const user = getById(userId);
   if (!user) return null;
   if (!isValidSignatureDataUrl(dataUrl)) {
@@ -1697,7 +1718,7 @@ export function submitHolderSignature(
     reviewedAt: null,
   };
   persistStore();
-  return buildMemberCard(userId);
+  return await buildMemberCard(userId);
 }
 
 /**
@@ -1725,11 +1746,11 @@ function reissueCard_(user: StoredUser, rec: MemberCardRecord) {
  * kind "signature": reviews the holder's hand-drawn signature.
  * kind "reissue":   approves/rejects a data-change re-issuance request.
  */
-export function reviewCardSignature(
+export async function reviewCardSignature(
   userId: number,
   decision: "approve" | "reject",
   kind: "signature" | "reissue" = "signature"
-): MemberCardData | null {
+): Promise<MemberCardData | null> {
   const user = getById(userId);
   if (!user) return null;
   const rec = getCardRecord(userId);
@@ -1739,7 +1760,7 @@ export function reviewCardSignature(
     if (decision === "approve") reissueCard_(user, rec);
     rec.reissueRequested = false;
     persistStore();
-    return buildMemberCard(userId);
+    return await buildMemberCard(userId);
   }
 
   if (rec.holderSignature.status !== "pending" || !rec.holderSignature.dataUrl) {
@@ -1749,7 +1770,7 @@ export function reviewCardSignature(
   rec.holderSignature.reviewedAt = new Date();
   if (decision === "approve") reissueCard_(user, rec);
   persistStore();
-  return buildMemberCard(userId);
+    return await buildMemberCard(userId);
 }
 
 /**
@@ -1757,17 +1778,17 @@ export function reviewCardSignature(
  * registry data changed. Does nothing if no snapshot exists yet or a request
  * is already pending.
  */
-export function requestCardReissue(userId: number): MemberCardData | null {
+export async function requestCardReissue(userId: number): Promise<MemberCardData | null> {
   const user = getById(userId);
   if (!user) return null;
   const rec = getCardRecord(userId);
   if (!rec.identitySnapshot || rec.reissueRequested) {
-    return buildMemberCard(userId);
+    return await buildMemberCard(userId);
   }
   rec.reissueRequested = true;
   rec.reissueRequestedAt = new Date();
   persistStore();
-  return buildMemberCard(userId);
+  return await buildMemberCard(userId);
 }
 
 export type PendingCardReview =

@@ -41,9 +41,9 @@ function createMember(
 }
 
 /** Approve the holder's signature so the card is issued (rev 1). */
-function issueCard(userId: number) {
-  submitHolderSignature(userId, PNG_1PX);
-  return reviewCardSignature(userId, "approve");
+async function issueCard(userId: number) {
+  await submitHolderSignature(userId, PNG_1PX);
+  return await reviewCardSignature(userId, "approve");
 }
 
 /** Member with fully customised searchable fields (name, institute, council). */
@@ -80,9 +80,9 @@ afterEach(() => {
 });
 
 describe("membership card", () => {
-  it("builds the card from registry data, unissued until approval", () => {
+  it("builds the card from registry data, unissued until approval", async () => {
     const user = createMember("MSAP-CARD-0001", "card1@example.com");
-    const card = buildMemberCard(user.id);
+    const card = await buildMemberCard(user.id);
     expect(card).not.toBeNull();
     if (!card) return;
     expect(card.memberName).toBe("Test MSAP-CARD-0001");
@@ -97,7 +97,7 @@ describe("membership card", () => {
     expect(card.president.signatureUrl).toBeNull();
   });
 
-  it("National Office can set the President's real signature; invalid PNGs are refused", () => {
+  it("National Office can set the President's real signature; invalid PNGs are refused", async () => {
     const user = createMember("MSAP-CARD-SIG01", "sigsig01@example.com");
     expect(setPresidentSignatureUrl("javascript:alert(1)")).toBe(false);
     expect(
@@ -107,14 +107,14 @@ describe("membership card", () => {
     const ok = setPresidentSignatureUrl(PNG_1PX);
     expect(ok).toBe(true);
     // The signature flows onto every card, issued or not.
-    expect(buildMemberCard(user.id)?.president.signatureUrl).toBe(PNG_1PX);
+    expect((await buildMemberCard(user.id))?.president.signatureUrl).toBe(PNG_1PX);
 
     // National Office can clear it again (revert to the placeholder).
     clearPresidentSignatureUrl();
-    expect(buildMemberCard(user.id)?.president.signatureUrl).toBeNull();
+    expect((await buildMemberCard(user.id))?.president.signatureUrl).toBeNull();
   });
 
-  it("shared signature validation rejects non-PNG payloads and oversized data", () => {
+  it("shared signature validation rejects non-PNG payloads and oversized data", async () => {
     expect(isValidSignatureDataUrl(PNG_1PX)).toBe(true);
     expect(isValidSignatureDataUrl("data:image/jpeg;base64,AAAA")).toBe(false);
     expect(isValidSignatureDataUrl("data:image/png;base64,")).toBe(false);
@@ -123,27 +123,27 @@ describe("membership card", () => {
     expect(isValidSignatureDataUrl(huge)).toBe(false);
   });
 
-  it("submits a PNG holder signature as pending; rejects non-PNG payloads", () => {
+  it("submits a PNG holder signature as pending; rejects non-PNG payloads", async () => {
     const user = createMember("MSAP-CARD-0002", "card2@example.com");
 
-    const submitted = submitHolderSignature(user.id, PNG_1PX);
+    const submitted = await submitHolderSignature(user.id, PNG_1PX);
     expect(submitted?.holderSignature.status).toBe("pending");
     expect(submitted?.holderSignature.dataUrl).toBe(PNG_1PX);
     expect(submitted?.issued).toBe(false);
 
     // Anything that is not a PNG data URL is refused.
-    expect(submitHolderSignature(user.id, "javascript:alert(1)")).toBeNull();
+    expect(await submitHolderSignature(user.id, "javascript:alert(1)")).toBeNull();
     expect(
-      submitHolderSignature(user.id, "data:image/svg+xml;base64,AAAA")
+      await submitHolderSignature(user.id, "data:image/svg+xml;base64,AAAA")
     ).toBeNull();
   });
 
-  it("approval issues the card with a fresh HMAC token and expiry", () => {
+  it("approval issues the card with a fresh HMAC token and expiry", async () => {
     const user = createMember("MSAP-CARD-0003", "card3@example.com");
-    const before = submitHolderSignature(user.id, PNG_1PX);
+    const before = await submitHolderSignature(user.id, PNG_1PX);
     expect(before?.holderSignature.status).toBe("pending");
 
-    const issued = reviewCardSignature(user.id, "approve");
+    const issued = await reviewCardSignature(user.id, "approve");
     expect(issued?.holderSignature.status).toBe("approved");
     expect(issued?.issued).toBe(true);
     expect(issued?.version).toBe(1);
@@ -153,30 +153,30 @@ describe("membership card", () => {
     expect(issued?.expiresAt?.getFullYear()).toBe(2028);
   });
 
-  it("rejection keeps the card unissued and the signature rejected", () => {
+  it("rejection keeps the card unissued and the signature rejected", async () => {
     const user = createMember("MSAP-CARD-0004", "card4@example.com");
-    submitHolderSignature(user.id, PNG_1PX);
+    await submitHolderSignature(user.id, PNG_1PX);
 
-    const rejected = reviewCardSignature(user.id, "reject");
+    const rejected = await reviewCardSignature(user.id, "reject");
     expect(rejected?.holderSignature.status).toBe("rejected");
     expect(rejected?.issued).toBe(false);
     expect(rejected?.verificationToken).toBeNull();
   });
 
-  it("queue filters by request kind and status", () => {
+  it("queue filters by request kind and status", async () => {
     const pendingSig = createMember("MSAP-QUEUE-001", "q1@example.com");
     const rejectedSig = createMember("MSAP-QUEUE-002", "q2@example.com");
     const reissue = createMember("MSAP-QUEUE-003", "q3@example.com");
 
     // pending signature
-    submitHolderSignature(pendingSig.id, PNG_1PX);
+    await submitHolderSignature(pendingSig.id, PNG_1PX);
     // rejected signature
-    submitHolderSignature(rejectedSig.id, PNG_1PX);
-    reviewCardSignature(rejectedSig.id, "reject");
+    await submitHolderSignature(rejectedSig.id, PNG_1PX);
+    await reviewCardSignature(rejectedSig.id, "reject");
     // pending re-issue
-    issueCard(reissue.id);
+    await issueCard(reissue.id);
     updateMemberProfile(reissue.id, { name: "Reissue Me" });
-    requestCardReissue(reissue.id);
+    await requestCardReissue(reissue.id);
 
     // kind = signature returns the signature rows (pending + rejected, and
     // the approved one left behind by issueCard on the re-issue member).
@@ -213,7 +213,7 @@ describe("membership card", () => {
     ]);
   });
 
-  it("queue filters by free-text query and local council", () => {
+  it("queue filters by free-text query and local council", async () => {
     const kemu = createMember(
       "MSAP-QUEUE-011",
       "q11@example.com",
@@ -224,8 +224,8 @@ describe("membership card", () => {
       "q12@example.com",
       "MSA-Pakistan AJKMC LC"
     );
-    submitHolderSignature(kemu.id, PNG_1PX);
-    submitHolderSignature(ajk.id, PNG_1PX);
+    await submitHolderSignature(kemu.id, PNG_1PX);
+    await submitHolderSignature(ajk.id, PNG_1PX);
 
     // Text query matches name, membership ID, institute or council.
     expect(
@@ -244,15 +244,15 @@ describe("membership card", () => {
     expect(listCardQueue({ limit: 1 }).length).toBe(1);
   });
 
-  it("queue status filter isolates approved (issued) history", () => {
+  it("queue status filter isolates approved (issued) history", async () => {
     const pending = createMember("MSAP-QUEUE-021", "q21@example.com");
     const issued = createMember("MSAP-QUEUE-022", "q22@example.com");
     const rejected = createMember("MSAP-QUEUE-023", "q23@example.com");
 
-    submitHolderSignature(pending.id, PNG_1PX);
-    issueCard(issued.id);
-    submitHolderSignature(rejected.id, PNG_1PX);
-    reviewCardSignature(rejected.id, "reject");
+    await submitHolderSignature(pending.id, PNG_1PX);
+    await issueCard(issued.id);
+    await submitHolderSignature(rejected.id, PNG_1PX);
+    await reviewCardSignature(rejected.id, "reject");
 
     const approved = listCardQueue({ status: "approved" });
     const ids = approved.map((i) => i.membershipId);
@@ -273,7 +273,7 @@ describe("membership card", () => {
     expect(issuedRows.every((i) => i.status === "approved")).toBe(true);
   });
 
-  it("queue free-text search matches name, email, institute and council", () => {
+  it("queue free-text search matches name, email, institute and council", async () => {
     const zainab = createCustomMember({
       membershipId: "MSAP-QUEUE-041",
       email: "zainab@example.com",
@@ -288,8 +288,8 @@ describe("membership card", () => {
       localCouncil: "MSA-Pakistan AIMC LC",
       institution: "Allama Iqbal Medical College, Lahore",
     });
-    submitHolderSignature(zainab.id, PNG_1PX);
-    submitHolderSignature(bilal.id, PNG_1PX);
+    await submitHolderSignature(zainab.id, PNG_1PX);
+    await submitHolderSignature(bilal.id, PNG_1PX);
 
     const ids = (q: string) =>
       listCardQueue({ query: q }).map((i) => i.membershipId);
@@ -311,9 +311,9 @@ describe("membership card", () => {
     expect(ids("lc")).toEqual(["MSAP-QUEUE-041", "MSAP-QUEUE-042"]);
   });
 
-  it("queue filters return empty for no matches and never leak other members", () => {
+  it("queue filters return empty for no matches and never leak other members", async () => {
     const kemu = createMember("MSAP-QUEUE-051", "q51@example.com");
-    submitHolderSignature(kemu.id, PNG_1PX);
+    await submitHolderSignature(kemu.id, PNG_1PX);
 
     expect(listCardQueue({ query: "no-such-member" })).toEqual([]);
     expect(listCardQueue({ localCouncil: "NONEXISTENT LC" })).toEqual([]);
@@ -324,7 +324,7 @@ describe("membership card", () => {
     ).toEqual([]);
   });
 
-  it("queue combined filters (kind + status + query + council) intersect", () => {
+  it("queue combined filters (kind + status + query + council) intersect", async () => {
     const kemuPending = createMember("MSAP-QUEUE-061", "q61@example.com");
     const kemuRejected = createMember("MSAP-QUEUE-062", "q62@example.com");
     const ajkPending = createMember(
@@ -334,11 +334,11 @@ describe("membership card", () => {
     );
     const kemuIssued = createMember("MSAP-QUEUE-064", "q64@example.com");
 
-    submitHolderSignature(kemuPending.id, PNG_1PX);
-    submitHolderSignature(kemuRejected.id, PNG_1PX);
-    reviewCardSignature(kemuRejected.id, "reject");
-    submitHolderSignature(ajkPending.id, PNG_1PX);
-    issueCard(kemuIssued.id);
+    await submitHolderSignature(kemuPending.id, PNG_1PX);
+    await submitHolderSignature(kemuRejected.id, PNG_1PX);
+    await reviewCardSignature(kemuRejected.id, "reject");
+    await submitHolderSignature(ajkPending.id, PNG_1PX);
+    await issueCard(kemuIssued.id);
 
     // signature + pending + KEMU council -> only the KEMU pending signature
     // (the issued KEMU member is approved, the AJK member is filtered out).
@@ -384,12 +384,12 @@ describe("membership card", () => {
     expect(approvedKemu.map((i) => i.membershipId)).toEqual(["MSAP-QUEUE-064"]);
   });
 
-  it("only pending signatures appear in the admin queue", () => {
+  it("only pending signatures appear in the admin queue", async () => {
     const user = createMember("MSAP-CARD-0005", "card5@example.com");
     const other = createMember("MSAP-CARD-0006", "card6@example.com");
-    submitHolderSignature(user.id, PNG_1PX);
-    submitHolderSignature(other.id, PNG_1PX);
-    reviewCardSignature(user.id, "approve");
+    await submitHolderSignature(user.id, PNG_1PX);
+    await submitHolderSignature(other.id, PNG_1PX);
+    await reviewCardSignature(user.id, "approve");
 
     const pending = listPendingCardApprovals();
     expect(pending.map((p) => p.membershipId).sort()).toEqual([
@@ -398,33 +398,33 @@ describe("membership card", () => {
     expect(pending.every((p) => p.request === "signature")).toBe(true);
   });
 
-  it("the card freezes approved data: later profile edits never appear unapproved", () => {
+  it("the card freezes approved data: later profile edits never appear unapproved", async () => {
     const user = createMember("MSAP-CARD-0007", "card7@example.com");
-    issueCard(user.id);
+    await issueCard(user.id);
 
-    const before = buildMemberCard(user.id);
+    const before = await buildMemberCard(user.id);
     expect(before?.memberName).toBe("Test MSAP-CARD-0007");
     expect(before?.dataChangedSinceIssuance).toBe(false);
 
     // Member edits their own name via the profile route - no approval.
     updateMemberProfile(user.id, { name: "HACKED NAME" });
 
-    const after = buildMemberCard(user.id);
+    const after = await buildMemberCard(user.id);
     expect(after?.memberName).toBe("Test MSAP-CARD-0007"); // still the approved name
     expect(after?.dataChangedSinceIssuance).toBe(true);
     expect(after?.reissueRequested).toBe(false);
   });
 
-  it("a re-issue request goes through approval and re-freezes the new data", () => {
+  it("a re-issue request goes through approval and re-freezes the new data", async () => {
     const user = createMember("MSAP-CARD-0008", "card8@example.com");
-    issueCard(user.id);
+    await issueCard(user.id);
     updateMemberProfile(user.id, {
       name: "Updated Name",
       localCouncil: "New LC",
     });
 
     // Member requests re-issue -> appears in the admin queue as a reissue item.
-    const requested = requestCardReissue(user.id);
+    const requested = await requestCardReissue(user.id);
     expect(requested?.reissueRequested).toBe(true);
     expect(
       listPendingCardApprovals().some(
@@ -433,7 +433,7 @@ describe("membership card", () => {
     ).toBe(true);
 
     // Approve the re-issue: new name + council are now frozen on the card.
-    const reissued = reviewCardSignature(user.id, "approve", "reissue");
+    const reissued = await reviewCardSignature(user.id, "approve", "reissue");
     expect(reissued?.memberName).toBe("Updated Name");
     expect(reissued?.localCouncil).toBe("New LC");
     expect(reissued?.version).toBe(2);
@@ -448,20 +448,20 @@ describe("membership card", () => {
     expect(verifyCardToken("MSAP-CARD-0008", token ?? "").valid).toBe(true);
   });
 
-  it("rejecting a re-issue request clears it without changing the card", () => {
+  it("rejecting a re-issue request clears it without changing the card", async () => {
     const user = createMember("MSAP-CARD-0009", "card9@example.com");
-    issueCard(user.id);
-    requestCardReissue(user.id);
+    await issueCard(user.id);
+    await requestCardReissue(user.id);
 
-    const rejected = reviewCardSignature(user.id, "reject", "reissue");
+    const rejected = await reviewCardSignature(user.id, "reject", "reissue");
     expect(rejected?.reissueRequested).toBe(false);
     expect(rejected?.version).toBe(1);
     expect(rejected?.memberName).toBe("Test MSAP-CARD-0009");
   });
 
-  it("verifyCardToken accepts only the authentic issued token", () => {
+  it("verifyCardToken accepts only the authentic issued token", async () => {
     const user = createMember("MSAP-CARD-0010", "card10@example.com");
-    const issued = issueCard(user.id);
+    const issued = await issueCard(user.id);
     if (!issued?.verificationToken) return;
 
     const ok = verifyCardToken("MSAP-CARD-0010", issued.verificationToken);

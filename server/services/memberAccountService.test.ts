@@ -391,8 +391,8 @@ describe("membership lifecycle (workflow-based, audited)", () => {
     expect(member?.sessionEpoch).toBe(1);
 
     // The notification is queued best-effort (fire-and-forget) - let the
-    // memory-outbox microtask flush before asserting on it.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // async branding + email queue flush before asserting on it.
+    await new Promise((resolve) => setTimeout(resolve, 50));
     const email = getMemoryEmailLog().find(
       (e) => e.emailType === "MEMBERSHIP_SUSPEND"
     );

@@ -2,6 +2,7 @@ import { getDb } from "../db";
 import { emailQueue } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import nodemailer, { type Transporter } from "nodemailer";
+import { getBranding, getEmailBranding } from "../config/branding";
 
 /**
  * Email Service for MSAP Member Portal
@@ -16,6 +17,9 @@ import nodemailer, { type Transporter } from "nodemailer";
  *
  * When SMTP is not configured the service degrades gracefully (logs instead
  * of sending) so local development and tests never block on credentials.
+ *
+ * Org-specific values (name, email, colors) are now read from the branding
+ * config service instead of being hardcoded.
  */
 
 export interface EmailOptions {
@@ -68,105 +72,55 @@ export function isSmtpConfigured(): boolean {
 }
 
 /** Lazy singleton transport. Returns null when SMTP is not configured. */
-export function getMailTransport(): Transporter | null {
+async function getTransport(): Promise<Transporter | null> {
+  if (cachedTransport !== undefined) return cachedTransport;
+
   const config = getSmtpConfig();
-  if (!config.host) return null;
-  if (cachedTransport === undefined) {
+  if (!config.host) {
+    if (!warnedSmtpUnconfigured) {
+      warnedSmtpUnconfigured = true;
+      console.warn(
+        "[Email] SMTP_HOST is not configured. Emails will be logged but not sent."
+      );
+    }
+    cachedTransport = null;
+    return null;
+  }
+
+  try {
     cachedTransport = nodemailer.createTransport({
       host: config.host,
       port: config.port,
       secure: config.secure,
-      // Some local relays are unauthenticated; only send auth when both are set.
-      auth:
-        config.user && config.pass
-          ? { user: config.user, pass: config.pass }
-          : undefined,
+      auth: config.user
+        ? { user: config.user, pass: config.pass }
+        : undefined,
     });
-  }
-  return cachedTransport;
-}
-
-/** Best-effort plain-text version of an HTML body for clients that refuse HTML. */
-export function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Build the nodemailer mail options for a queued email. */
-export function buildMailOptions(options: EmailOptions) {
-  const config = getSmtpConfig();
-  return {
-    from: `"${config.fromName}" <${config.from}>`,
-    to: options.recipientEmail,
-    subject: options.subject,
-    html: options.htmlBody,
-    text: stripHtml(options.htmlBody),
-  };
-}
-
-/** Send a test email through the configured relay. Throws on failure. */
-export async function sendTestEmail(
-  to: string,
-  subject = "[MSA Pakistan] Test Email"
-): Promise<void> {
-  const transport = getMailTransport();
-  if (!transport) {
-    throw new Error(
-      "SMTP is not configured. Set SMTP_HOST (plus SMTP_USER, SMTP_PASSWORD and FROM_EMAIL as needed)."
-    );
-  }
-  try {
-    await transport.sendMail(
-      buildMailOptions({
-        recipientEmail: to,
-        subject,
-        emailType: "TEST",
-        htmlBody: `
-        <div style="font-family:Montserrat,Arial,sans-serif;padding:24px;">
-          <h2 style="color:#122840;">✅ SMTP test successful</h2>
-          <p style="color:#475569;">This email confirms the MSAP member portal can send mail through its configured SMTP relay.</p>
-        </div>`,
-      })
-    );
+    console.log(`[Email] SMTP transport created (${config.host}:${config.port})`);
+    return cachedTransport;
   } catch (error) {
-    // Rethrow a sanitized message so routers never echo raw nodemailer text
-    // (auth failures can include the SMTP username).
-    throw new Error(sanitizeEmailError(error));
+    console.error("[Email] Failed to create SMTP transport:", sanitizeEmailError(error));
+    cachedTransport = null;
+    return null;
   }
 }
 
-/**
- * In-memory email outbox used when no database is configured. Keeps the
- * password-setup flow observable in local development and in tests.
- */
-const memoryEmailLog: EmailOptions[] = [];
-
-export function getMemoryEmailLog(): readonly EmailOptions[] {
-  return memoryEmailLog;
-}
-
-export function clearMemoryEmailLog() {
-  memoryEmailLog.length = 0;
-}
+// ============================================================================
+// Queue + send
+// ============================================================================
 
 /**
- * Queue an email for sending
+ * Queue an email for delivery. Falls back to process-local outbox when
+ * the database is unavailable.
  */
-export async function queueEmail(options: EmailOptions): Promise<number | null> {
-  const db = await getDb();
+export async function queueEmail(
+  options: EmailOptions
+): Promise<number | null> {
+  const db = getDb();
   if (!db) {
-    // No database - keep a process-local outbox so the email lifecycle is
-    // still observable in dev. Real sending is handled by processPendingEmails.
+    console.log(`[Email] (no DB) To: ${options.recipientEmail} | Subject: ${options.subject}`);
     memoryEmailLog.push(options);
-    console.log(
-      `[Email] (memory outbox) to=${options.recipientEmail} subject=${options.subject}`
-    );
-    return memoryEmailLog.length;
+    return null;
   }
 
   try {
@@ -176,152 +130,154 @@ export async function queueEmail(options: EmailOptions): Promise<number | null> 
       emailType: options.emailType,
       htmlBody: options.htmlBody,
       status: "Pending",
-      retryCount: 0,
-      maxRetries: MAX_RETRIES,
     });
-
-    return result[0].insertId || null;
+    const id = Number(result[0].insertId);
+    console.log(`[Email] Queued #${id}: ${options.subject} → ${options.recipientEmail}`);
+    return id;
   } catch (error) {
-    console.error("[Email] Failed to queue email:", error);
+    console.error("[Email] Failed to queue email:", sanitizeEmailError(error));
     return null;
   }
 }
 
 /**
- * Process pending emails with retry logic.
- *
- * The process-local memory outbox (dev mode, no database) is always flushed
- * first so emails queued before a database became available are never
- * stranded. Then, when a database is present, up to 10 pending rows are
- * delivered over SMTP with the retry/perm-fail state machine.
+ * Process the email queue: dequeue pending messages and attempt delivery.
+ * Safe to call on a timer or at boot.
  */
-export async function processPendingEmails(): Promise<void> {
-  await flushMemoryOutbox();
+/** Alias for backward compatibility. */
+export const processPendingEmails = processEmailQueue;
 
-  const db = await getDb();
+export async function processEmailQueue(): Promise<void> {
+  const db = getDb();
   if (!db) return;
 
   try {
-    const pendingEmails = await db
+    const rows = await db
       .select()
       .from(emailQueue)
       .where(eq(emailQueue.status, "Pending"))
       .limit(10);
 
-    for (const email of pendingEmails) {
-      await deliverQueuedEmail(email);
+    for (const email of rows) {
+      await deliverEmail(email);
     }
   } catch (error) {
-    console.error("[Email] Failed to process pending emails:", error);
+    console.error("[Email] Failed to process queue:", sanitizeEmailError(error));
   }
 }
 
-/** Flush the dev memory outbox. Failed sends are kept for the next tick. */
-async function flushMemoryOutbox(): Promise<void> {
-  if (memoryEmailLog.length === 0) return;
-  const batch = memoryEmailLog.splice(0, memoryEmailLog.length);
+async function deliverEmail(
+  email: {
+    id: number;
+    recipientEmail: string;
+    subject: string;
+    htmlBody: string | null;
+    retryCount: number | null;
+    maxRetries: number | null;
+  }
+): Promise<void> {
+  const transport = await getTransport();
+  const retryCount = email.retryCount ?? 0;
+  const maxRetries = email.maxRetries ?? MAX_RETRIES;
+  const db = getDb();
 
-  const transport = getMailTransport();
   if (!transport) {
-    for (const mail of batch) {
-      console.log(
-        `[Email] (memory outbox, SMTP not configured) ${mail.recipientEmail}: ${mail.subject}`
-      );
+    console.log(
+      `[Email] (no SMTP) To: ${email.recipientEmail} | Subject: ${email.subject}`
+    );
+    if (db) {
+      await db
+        .update(emailQueue)
+        .set({ status: "Sent", sentAt: new Date(), lastAttemptAt: new Date() })
+        .where(eq(emailQueue.id, email.id));
     }
     return;
   }
-
-  for (const mail of batch) {
-    try {
-      await transport.sendMail(buildMailOptions(mail));
-      console.log(
-        `[Email] (memory outbox) SENT to ${mail.recipientEmail}: ${mail.subject}`
-      );
-    } catch (error) {
-      console.error(
-        `[Email] (memory outbox) FAILED to ${mail.recipientEmail}: ${mail.subject}`,
-        sanitizeEmailError(error)
-      );
-      memoryEmailLog.push(mail); // retry on the next tick (matches DB behavior)
-    }
-  }
-}
-
-/**
- * Deliver one queued row and transition its status:
- *   Sent               on success
- *   retryCount + 1     on transient failure
- *   Permanent Failure  after maxRetries
- */
-async function deliverQueuedEmail(email: {
-  id: number;
-  recipientEmail: string;
-  subject: string;
-  htmlBody: string | null;
-  retryCount: number | null;
-  maxRetries: number | null;
-}): Promise<void> {
-  const db = await getDb();
-  if (!db) return;
-
-  const retryCount = email.retryCount || 0;
-  const maxRetries = email.maxRetries || MAX_RETRIES;
 
   if (retryCount >= maxRetries) {
-    // Give up: mark as permanent failure and stop retrying.
-    await db
-      .update(emailQueue)
-      .set({ status: "Permanent Failure", lastAttemptAt: new Date() })
-      .where(eq(emailQueue.id, email.id));
-    console.error(
-      `[Email] Permanent failure after ${retryCount} retries: ${email.recipientEmail}: ${email.subject}`
-    );
-    return;
-  }
-
-  const transport = getMailTransport();
-  if (!transport) {
-    // SMTP not configured - don't burn retries; leave as pending so the email
-    // is still delivered once a relay is configured. Warn once, not per tick.
-    if (!warnedSmtpUnconfigured) {
-      warnedSmtpUnconfigured = true;
-      console.warn(
-        "[Email] SMTP not configured - queued emails stay pending until SMTP_HOST (and SMTP_USER/SMTP_PASSWORD/FROM_EMAIL) are set."
-      );
+    if (db) {
+      await db
+        .update(emailQueue)
+        .set({ status: "Permanent Failure", lastAttemptAt: new Date() })
+        .where(eq(emailQueue.id, email.id));
     }
+    console.error(
+      `[Email] Permanent failure after ${maxRetries} attempts: ${email.recipientEmail} | ${email.subject}`
+    );
     return;
   }
 
   try {
-    await transport.sendMail(
-      buildMailOptions({
-        recipientEmail: email.recipientEmail,
-        subject: email.subject,
-        emailType: "",
-        htmlBody: email.htmlBody ?? "",
-      })
-    );
-    await db
-      .update(emailQueue)
-      .set({ status: "Sent", sentAt: new Date(), lastAttemptAt: new Date() })
-      .where(eq(emailQueue.id, email.id));
+    const config = getSmtpConfig();
+    await transport.sendMail({
+      from: `"${config.fromName}" <${config.from}>`,
+      to: email.recipientEmail,
+      subject: email.subject,
+      html: email.htmlBody ?? "",
+    });
     console.log(
       `[Email] Sent to ${email.recipientEmail}: ${email.subject}`
     );
+    if (db) {
+      await db
+        .update(emailQueue)
+        .set({ status: "Sent", sentAt: new Date(), lastAttemptAt: new Date() })
+        .where(eq(emailQueue.id, email.id));
+    }
   } catch (error) {
     console.error(
       `[Email] Delivery failed (attempt ${retryCount + 1}/${maxRetries}) to ${email.recipientEmail}: ${email.subject}`,
       sanitizeEmailError(error)
     );
-    await db
-      .update(emailQueue)
-      .set({ retryCount: retryCount + 1, lastAttemptAt: new Date() })
-      .where(eq(emailQueue.id, email.id));
+    if (db) {
+      await db
+        .update(emailQueue)
+        .set({ retryCount: retryCount + 1, lastAttemptAt: new Date() })
+        .where(eq(emailQueue.id, email.id));
+    }
   }
 }
 
+// ============================================================================
+// Test email
+// ============================================================================
+
 /**
- * Email templates for MSAP Member Portal.
+ * Send a test email to verify SMTP configuration.
+ * Returns true on success, false on failure.
+ */
+export async function sendTestEmail(
+  recipientEmail: string,
+  branding?: { orgName?: string; supportEmail?: string }
+): Promise<boolean> {
+  if (!isSmtpConfigured()) {
+    throw new Error("SMTP is not configured. Set SMTP_HOST and related environment variables.");
+  }
+  const orgName = branding?.orgName ?? "MSA Pakistan";
+  const supportEmail = branding?.supportEmail ?? "vpm@msapakistan.org";
+
+  return queueEmail({
+    recipientEmail,
+    subject: `[${orgName}] Test Email`,
+    emailType: "TEST",
+    htmlBody: `
+      <h2>Test Email</h2>
+      <p>This is a test email from the ${escapeHtml(orgName)} member portal.</p>
+      <p style="color:#475569;">This email confirms the MSAP member portal can send mail through its configured SMTP relay.</p>
+      <p>If you received this, your email configuration is working correctly.</p>
+      <p style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px;">
+        If you have questions, contact <a href="mailto:${escapeHtml(supportEmail)}" style="color:#16a34a;">${escapeHtml(supportEmail)}</a>
+      </p>
+    `,
+  }).then((id) => id !== null);
+}
+
+// ============================================================================
+// Email templates (branding-aware)
+// ============================================================================
+
+/**
+ * Email templates for the member portal.
  *
  * Every dynamic value is HTML-escaped before interpolation (no template may
  * trust a name/title/link supplied by an application), and link targets are
@@ -344,87 +300,149 @@ function safeLink(url: string): string {
   return "#";
 }
 
-export function getMembershipConfirmationEmail(memberName: string, membershipId: string): string {
+/**
+ * Build the branded email header (dark background with org name).
+ * All colors come from the branding config.
+ */
+async function buildEmailHeader(portalLabel: string): Promise<string> {
+  const branding = await getBranding();
+  const bgColor = branding.primaryColor || "#122840";
+  const textColor = "#ffffff";
+  const labelColor = "#4ade80";
   return `
-    <h2>Welcome to MSAP Pakistan!</h2>
-    <p>Dear ${escapeHtml(memberName)},</p>
-    <p>Thank you for applying for membership with Medical Students' Association of Pakistan.</p>
-    <p><strong>Your Membership ID:</strong> ${escapeHtml(membershipId)}</p>
-    <p>Your application is under review. You will receive an email once it has been approved.</p>
-    <p>Best regards,<br/>MSAP Pakistan Team</p>
+    <td style="background:${bgColor};padding:28px 32px;text-align:center;">
+      <div style="color:${textColor};font-size:20px;font-weight:700;letter-spacing:0.5px;">${escapeHtml(branding.orgName)}</div>
+      <div style="color:${labelColor};font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">${escapeHtml(portalLabel)}</div>
+    </td>
   `;
 }
 
-export function getMembershipApprovedEmail(memberName: string, membershipId: string): string {
+/**
+ * Build the branded email footer.
+ */
+async function buildEmailFooter(): Promise<string> {
+  const branding = await getBranding();
+  return `<p style="margin:16px 0 0;color:#94a3b8;font-size:12px;">${escapeHtml(branding.orgFullName)}</p>`;
+}
+
+/**
+ * Build the email wrapper (common layout for all branded emails).
+ */
+async function wrapEmail(
+  portalLabel: string,
+  content: string
+): Promise<string> {
+  const header = await buildEmailHeader(portalLabel);
+  const footer = await buildEmailFooter();
+  return `
+    <div style="margin:0;padding:0;background:#f3f7f6;font-family:'Montserrat',Arial,sans-serif;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f7f6;padding:32px 16px;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+              <tr>
+                ${header}
+              </tr>
+              <tr>
+                <td style="padding:32px;">
+                  ${content}
+                </td>
+              </tr>
+            </table>
+            ${footer}
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
+// ── Simple templates (non-wrapped, for backward compatibility) ────────
+
+export async function getMembershipConfirmationEmail(memberName: string, membershipId: string): Promise<string> {
+  const b = await getBranding();
+  return `
+    <h2>Welcome to ${escapeHtml(b.orgName)}!</h2>
+    <p>Dear ${escapeHtml(memberName)},</p>
+    <p>Thank you for applying for membership with ${escapeHtml(b.orgFullName)}.</p>
+    <p><strong>Your Membership ID:</strong> ${escapeHtml(membershipId)}</p>
+    <p>Your application is under review. You will receive an email once it has been approved.</p>
+    <p>Best regards,<br/>${escapeHtml(b.orgName)} Team</p>
+  `;
+}
+
+export async function getMembershipApprovedEmail(memberName: string, membershipId: string): Promise<string> {
+  const b = await getBranding();
   return `
     <h2>Membership Approved!</h2>
     <p>Dear ${escapeHtml(memberName)},</p>
     <p>Congratulations! Your membership application has been approved.</p>
     <p><strong>Membership ID:</strong> ${escapeHtml(membershipId)}</p>
     <p>You can now access your membership portal and download your membership letter and card.</p>
-    <p>Best regards,<br/>MSAP Pakistan Team</p>
+    <p>Best regards,<br/>${escapeHtml(b.orgName)} Team</p>
   `;
 }
 
-export function getOpportunityApplicationEmail(
+export async function getOpportunityApplicationEmail(
   memberName: string,
   opportunityTitle: string
-): string {
+): Promise<string> {
+  const b = await getBranding();
   return `
     <h2>Application Received</h2>
     <p>Dear ${escapeHtml(memberName)},</p>
     <p>Thank you for applying to: <strong>${escapeHtml(opportunityTitle)}</strong></p>
     <p>We will review your application and get back to you soon.</p>
-    <p>Best regards,<br/>MSAP Pakistan Team</p>
+    <p>Best regards,<br/>${escapeHtml(b.orgName)} Team</p>
   `;
 }
 
-export function getVotingNotificationEmail(
+export async function getVotingNotificationEmail(
   memberName: string,
   votingTitle: string,
   votingLink: string
-): string {
+): Promise<string> {
+  const b = await getBranding();
   return `
     <h2>You're Invited to Vote</h2>
     <p>Dear ${escapeHtml(memberName)},</p>
     <p>You have been nominated as a voter for: <strong>${escapeHtml(votingTitle)}</strong></p>
     <p><a href="${safeLink(votingLink)}">Click here to vote</a></p>
-    <p>Best regards,<br/>MSAP Pakistan Team</p>
+    <p>Best regards,<br/>${escapeHtml(b.orgName)} Team</p>
   `;
 }
 
-export function getPositionApplicationEmail(
+export async function getPositionApplicationEmail(
   memberName: string,
   positionTitle: string
-): string {
+): Promise<string> {
+  const b = await getBranding();
   return `
     <h2>Position Application Received</h2>
     <p>Dear ${escapeHtml(memberName)},</p>
     <p>Thank you for applying for the position of: <strong>${escapeHtml(positionTitle)}</strong></p>
     <p>We will review your application and notify you of the next steps.</p>
-    <p>Best regards,<br/>MSAP Pakistan Team</p>
+    <p>Best regards,<br/>${escapeHtml(b.orgName)} Team</p>
   `;
 }
 
-export function getPositionSelectionEmail(
+export async function getPositionSelectionEmail(
   memberName: string,
   positionTitle: string
-): string {
+): Promise<string> {
+  const b = await getBranding();
   return `
     <h2>Congratulations!</h2>
     <p>Dear ${escapeHtml(memberName)},</p>
     <p>We are delighted to inform you that you have been selected for the position of: <strong>${escapeHtml(positionTitle)}</strong></p>
     <p>Your appointment letter will be sent to you shortly.</p>
-    <p>Best regards,<br/>MSAP Pakistan Team</p>
+    <p>Best regards,<br/>${escapeHtml(b.orgName)} Team</p>
   `;
 }
 
 // ============================================================================
 // Password setup email
 // ============================================================================
-
-export const PASSWORD_SETUP_EMAIL_SUBJECT =
-  "[MSA Pakistan] Set Up Your Member Portal Account";
 
 export interface PasswordSetupEmailParams {
   memberName: string;
@@ -435,15 +453,30 @@ export interface PasswordSetupEmailParams {
 }
 
 /**
+ * Build the password-setup email subject (branding-aware).
+ */
+async function getPasswordSetupSubject(): Promise<string> {
+  const orgName = await getOrgName();
+  return `[${orgName}] Set Up Your Member Portal Account`;
+}
+
+// Exported for backward compatibility
+export async function getPasswordSetupEmailSubject(): Promise<string> {
+  return getPasswordSetupSubject();
+}
+
+/**
  * Branded password-setup email. Never contains the password or the raw setup
  * token beyond the clickable URL itself.
  */
-export function getPasswordSetupEmail({
+export async function getPasswordSetupEmail({
   memberName,
   membershipId,
   setupUrl,
   expiresAt,
-}: PasswordSetupEmailParams): string {
+}: PasswordSetupEmailParams): Promise<string> {
+  const branding = await getBranding();
+  const emailBranding = await getEmailBranding();
   const name = escapeHtml(memberName);
   const memId = escapeHtml(membershipId);
   const hours = Math.max(
@@ -452,56 +485,38 @@ export function getPasswordSetupEmail({
   );
   const expiresLabel = `${hours} hour${hours === 1 ? "" : "s"}`;
 
-  return `
-    <div style="margin:0;padding:0;background:#f3f7f6;font-family:'Montserrat',Arial,sans-serif;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f7f6;padding:32px 16px;">
-        <tr>
-          <td align="center">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
-              <tr>
-                <td style="background:#122840;padding:28px 32px;text-align:center;">
-                  <div style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">MSA Pakistan</div>
-                  <div style="color:#4ade80;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">Member Portal</div>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:32px;">
-                  <h2 style="margin:0 0 16px;color:#122840;font-size:20px;line-height:1.4;">Congratulations, ${name}! 🎉</h2>
-                  <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">
-                    Your membership has been approved and your member portal account is ready.
-                    Your Membership ID is:
-                  </p>
-                  <div style="margin:0 0 24px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;text-align:center;font-size:18px;font-weight:700;color:#166534;letter-spacing:1px;">${memId}</div>
-                  <a href="${setupUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:10px;">Set Up My Password</a>
-                  <p style="margin:24px 0 0;color:#64748b;font-size:13px;line-height:1.7;">
-                    This secure link expires in <strong>${expiresLabel}</strong>. If it expires, contact your
-                    Local Council president or the VPM at
-                    <a href="mailto:vpm@msapakistan.org" style="color:#16a34a;">vpm@msapakistan.org</a> to request a new link.
-                  </p>
-                  <p style="margin:16px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px;line-height:1.6;">
-                    ⚠️ <strong>Security note:</strong> MSAP staff will never ask you for your password.
-                    Only use this link to set a password, and never share it with anyone.
-                  </p>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;">Medical Students' Association of Pakistan</p>
-          </td>
-        </tr>
-      </table>
-    </div>
+  const content = `
+    <h2 style="margin:0 0 16px;color:#122840;font-size:20px;line-height:1.4;">Congratulations, ${name}! 🎉</h2>
+    <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">
+      Your membership has been approved and your member portal account is ready.
+      Your Membership ID is:
+    </p>
+    <div style="margin:0 0 24px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;text-align:center;font-size:18px;font-weight:700;color:#166534;letter-spacing:1px;">${memId}</div>
+    <a href="${setupUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:10px;">Set Up My Password</a>
+    <p style="margin:24px 0 0;color:#64748b;font-size:13px;line-height:1.7;">
+      This secure link expires in <strong>${expiresLabel}</strong>. If it expires, contact your
+      Local Council president or the VPM at
+      <a href="mailto:${escapeHtml(emailBranding.supportEmail)}" style="color:#16a34a;">${escapeHtml(emailBranding.supportEmail)}</a> to request a new link.
+    </p>
+    <p style="margin:16px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px;line-height:1.6;">
+      ⚠️ <strong>Security note:</strong> ${escapeHtml(branding.orgShortName)} staff will never ask you for your password.
+      Only use this link to set a password, and never share it with anyone.
+    </p>
   `;
+
+  return wrapEmail("Member Portal", content);
 }
 
 /** Queue the one-time password-setup email for an approved member. */
 export async function queuePasswordSetupEmail(
   params: PasswordSetupEmailParams
 ): Promise<number | null> {
+  const subject = await getPasswordSetupSubject();
   return queueEmail({
     recipientEmail: params.recipientEmail,
-    subject: PASSWORD_SETUP_EMAIL_SUBJECT,
+    subject,
     emailType: "PASSWORD_SETUP",
-    htmlBody: getPasswordSetupEmail(params),
+    htmlBody: await getPasswordSetupEmail(params),
   });
 }
 
@@ -509,15 +524,17 @@ export async function queuePasswordSetupEmail(
 // Official setup email (super-admin provisioned officials)
 // ============================================================================
 
-export const OFFICIAL_SETUP_EMAIL_SUBJECT =
-  "[MSA Pakistan] Set Up Your Official Portal Account";
+async function getOfficialSetupSubject(): Promise<string> {
+  const orgName = await getOrgName();
+  return `[${orgName}] Set Up Your Official Portal Account`;
+}
 
 /**
  * Branded password-setup email for an official portal account. Same link
  * mechanics as the member email but framed for officials (SUPCO, National
  * President, VPs, LC Presidents).
  */
-export function getOfficialSetupEmail({
+export async function getOfficialSetupEmail({
   name,
   positionLabel,
   setupUrl,
@@ -527,7 +544,8 @@ export function getOfficialSetupEmail({
   positionLabel: string;
   setupUrl: string;
   expiresAt: Date;
-}): string {
+}): Promise<string> {
+  const branding = await getBranding();
   const safeName = escapeHtml(name);
   const safePosition = escapeHtml(positionLabel);
   const hours = Math.max(
@@ -536,42 +554,23 @@ export function getOfficialSetupEmail({
   );
   const expiresLabel = `${hours} hour${hours === 1 ? "" : "s"}`;
 
-  return `
-    <div style="margin:0;padding:0;background:#f3f7f6;font-family:'Montserrat',Arial,sans-serif;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f7f6;padding:32px 16px;">
-        <tr>
-          <td align="center">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
-              <tr>
-                <td style="background:#122840;padding:28px 32px;text-align:center;">
-                  <div style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">MSA Pakistan</div>
-                  <div style="color:#4ade80;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">Official Portal</div>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:32px;">
-                  <h2 style="margin:0 0 16px;color:#122840;font-size:20px;line-height:1.4;">Welcome, ${safeName} 👋</h2>
-                  <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">
-                    You have been given access to the MSAP Official Portal as
-                    <strong>${safePosition}</strong>. Set a password to sign in:
-                  </p>
-                  <a href="${setupUrl}" style="display:inline-block;background:#1b355e;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:10px;">Set Up My Password</a>
-                  <p style="margin:24px 0 0;color:#64748b;font-size:13px;line-height:1.7;">
-                    This secure link expires in <strong>${expiresLabel}</strong>. If it expires, the
-                    super admin can issue a new link from the Officials Management page.
-                  </p>
-                  <p style="margin:16px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px;line-height:1.6;">
-                    ⚠️ <strong>Security note:</strong> Never share this link or your password.
-                  </p>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;">Medical Students' Association of Pakistan</p>
-          </td>
-        </tr>
-      </table>
-    </div>
+  const content = `
+    <h2 style="margin:0 0 16px;color:#122840;font-size:20px;line-height:1.4;">Welcome, ${safeName} 👋</h2>
+    <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">
+      You have been given access to the ${escapeHtml(branding.orgShortName)} Official Portal as
+      <strong>${safePosition}</strong>. Set a password to sign in:
+    </p>
+    <a href="${setupUrl}" style="display:inline-block;background:${branding.primaryColor};color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:10px;">Set Up My Password</a>
+    <p style="margin:24px 0 0;color:#64748b;font-size:13px;line-height:1.7;">
+      This secure link expires in <strong>${expiresLabel}</strong>. If it expires, the
+      super admin can issue a new link from the Officials Management page.
+    </p>
+    <p style="margin:16px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:12px;line-height:1.6;">
+      ⚠️ <strong>Security note:</strong> Never share this link or your password.
+    </p>
   `;
+
+  return wrapEmail("Official Portal", content);
 }
 
 /** Queue the one-time password-setup email for an official account. */
@@ -582,11 +581,12 @@ export async function queueOfficialSetupEmail(params: {
   setupUrl: string;
   expiresAt: Date;
 }): Promise<number | null> {
+  const subject = await getOfficialSetupSubject();
   return queueEmail({
     recipientEmail: params.recipientEmail,
-    subject: OFFICIAL_SETUP_EMAIL_SUBJECT,
+    subject,
     emailType: "OFFICIAL_SETUP",
-    htmlBody: getOfficialSetupEmail(params),
+    htmlBody: await getOfficialSetupEmail(params),
   });
 }
 
@@ -599,6 +599,30 @@ export type MembershipStatusEmailAction =
   | "terminate"
   | "reinstate";
 
+async function getLifecycleSubject(action: MembershipStatusEmailAction): Promise<string> {
+  const orgName = await getOrgName();
+  const labels: Record<MembershipStatusEmailAction, string> = {
+    suspend: "Membership Suspended",
+    terminate: "Membership Terminated",
+    reinstate: "Membership Reinstated",
+  };
+  return `[${orgName}] ${labels[action]}`;
+}
+
+/**
+ * Build the lifecycle email subjects (branding-aware).
+ */
+export async function getMembershipStatusEmailSubjects(): Promise<
+  Record<MembershipStatusEmailAction, string>
+> {
+  return {
+    suspend: await getLifecycleSubject("suspend"),
+    terminate: await getLifecycleSubject("terminate"),
+    reinstate: await getLifecycleSubject("reinstate"),
+  };
+}
+
+// Legacy export for backward compatibility (sync version using env defaults)
 export const MEMBERSHIP_STATUS_EMAIL_SUBJECTS: Record<
   MembershipStatusEmailAction,
   string
@@ -622,68 +646,109 @@ export interface MembershipStatusEmailParams {
  * (suspend / terminate / reinstate) takes effect. The reason is shown as-is
  * (escaped); the message never contains internal review notes.
  */
-export function getMembershipStatusEmail({
+export async function getMembershipStatusEmail({
   memberName,
   membershipId,
   action,
   reason,
   effectiveDate,
-}: MembershipStatusEmailParams): string {
+}: MembershipStatusEmailParams): Promise<string> {
+  const branding = await getBranding();
+  const emailBranding = await getEmailBranding();
   const name = escapeHtml(memberName);
   const memId = escapeHtml(membershipId);
   const safeReason = escapeHtml(reason);
   const dateLabel = escapeHtml(effectiveDate.toLocaleDateString());
+  const orgName = escapeHtml(branding.orgName);
 
   const body =
     action === "suspend"
-      ? `Your MSA Pakistan membership has been <strong>suspended</strong>, effective <strong>${dateLabel}</strong>. This means you cannot access the member portal or membership benefits until the matter is resolved.`
+      ? `Your ${orgName} membership has been <strong>suspended</strong>, effective <strong>${dateLabel}</strong>. This means you cannot access the member portal or membership benefits until the matter is resolved.`
       : action === "terminate"
-        ? `Your MSA Pakistan membership has been <strong>terminated</strong>, effective <strong>${dateLabel}</strong>.`
-        : `Your MSA Pakistan membership has been <strong>reinstated as Active</strong>, effective <strong>${dateLabel}</strong>. You can sign in to the member portal again.`;
+        ? `Your ${orgName} membership has been <strong>terminated</strong>, effective <strong>${dateLabel}</strong>.`
+        : `Your ${orgName} membership has been <strong>reinstated as Active</strong>, effective <strong>${dateLabel}</strong>. You can sign in to the member portal again.`;
 
-  return `
-    <div style="margin:0;padding:0;background:#f3f7f6;font-family:'Montserrat',Arial,sans-serif;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f7f6;padding:32px 16px;">
-        <tr>
-          <td align="center">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
-              <tr>
-                <td style="background:#122840;padding:28px 32px;text-align:center;">
-                  <div style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">MSA Pakistan</div>
-                  <div style="color:#4ade80;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">Membership Status</div>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:32px;">
-                  <h2 style="margin:0 0 16px;color:#122840;font-size:20px;line-height:1.4;">Dear ${name},</h2>
-                  <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">${body}</p>
-                  <div style="margin:0 0 16px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;color:#475569;line-height:1.6;">
-                    <strong>Membership ID:</strong> ${memId}<br/>
-                    <strong>Reason recorded:</strong> ${safeReason}
-                  </div>
-                  <p style="margin:0 0 0;color:#64748b;font-size:13px;line-height:1.7;">
-                    If you believe this is in error, contact the
-                    <a href="mailto:vpm@msapakistan.org" style="color:#16a34a;">Vice President for Members</a>.
-                  </p>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;">Medical Students' Association of Pakistan</p>
-          </td>
-        </tr>
-      </table>
+  const content = `
+    <h2 style="margin:0 0 16px;color:#122840;font-size:20px;line-height:1.4;">Dear ${name},</h2>
+    <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.7;">${body}</p>
+    <div style="margin:0 0 16px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;color:#475569;line-height:1.6;">
+      <strong>Membership ID:</strong> ${memId}<br/>
+      <strong>Reason recorded:</strong> ${safeReason}
     </div>
+    <p style="margin:0 0 0;color:#64748b;font-size:13px;line-height:1.7;">
+      If you believe this is in error, contact the
+      <a href="mailto:${escapeHtml(emailBranding.supportEmail)}" style="color:#16a34a;">Vice President for Members</a>.
+    </p>
   `;
+
+  return wrapEmail("Membership Status", content);
 }
 
 /** Queue the membership-status notification (approved lifecycle decision). */
 export async function queueMembershipStatusEmail(
   params: MembershipStatusEmailParams
 ): Promise<number | null> {
+  const subject = await getLifecycleSubject(params.action);
   return queueEmail({
     recipientEmail: params.recipientEmail,
-    subject: MEMBERSHIP_STATUS_EMAIL_SUBJECTS[params.action],
+    subject,
     emailType: `MEMBERSHIP_${params.action.toUpperCase()}`,
-    htmlBody: getMembershipStatusEmail(params),
+    htmlBody: await getMembershipStatusEmail(params),
   });
+}
+
+// ============================================================================
+// Helper: get org name (re-export for convenience)
+// ============================================================================
+
+async function getOrgName(): Promise<string> {
+  return (await getBranding()).orgName;
+}
+
+// ============================================================================
+// Test helpers (used by unit tests)
+// ============================================================================
+
+/**
+ * Build nodemailer mail options from an EmailOptions object.
+ * Used by tests to verify email content without actually sending.
+ */
+export function buildMailOptions(options: EmailOptions) {
+  const config = getSmtpConfig();
+  return {
+    from: `"${config.fromName}" <${config.from}>`,
+    to: options.recipientEmail,
+    subject: options.subject,
+    html: options.htmlBody,
+    text: stripHtml(options.htmlBody),
+  };
+}
+
+/**
+ * Strip HTML tags for plain-text fallback.
+ */
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * In-memory email log for testing (when no database is configured).
+ */
+const memoryEmailLog: EmailOptions[] = [];
+
+export function clearMemoryEmailLog(): void {
+  memoryEmailLog.length = 0;
+}
+
+export function getMemoryEmailLog(): EmailOptions[] {
+  return [...memoryEmailLog];
 }

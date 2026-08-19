@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 describe("member store persistence", () => {
-  it("round-trips issued cards, accounts and the president signature", () => {
+  it("round-trips issued cards, accounts and the president signature", async () => {
     const user = createMember("MSAP-PERSIST-0001", "persist1@example.com");
     const issued = issueCard(user.id);
     if (!issued?.verificationToken) return;
@@ -69,11 +69,11 @@ describe("member store persistence", () => {
       users: [],
       cards: [],
     });
-    expect(buildMemberCard(user.id)).toBeNull();
+    expect(await buildMemberCard(user.id)).toBeNull();
 
     applyStoreState(snapshot);
 
-    const restored = buildMemberCard(user.id);
+    const restored = await buildMemberCard(user.id);
     expect(restored).not.toBeNull();
     if (!restored) return;
     expect(restored.memberName).toBe("Test MSAP-PERSIST-0001");
@@ -92,7 +92,7 @@ describe("member store persistence", () => {
     ).toBe(true);
   });
 
-  it("restores setup tokens so members can still finish onboarding", () => {
+  it("restores setup tokens so members can still finish onboarding", async () => {
     const user = createMember("MSAP-PERSIST-0002", "persist2@example.com");
     // Dev/test members get a setup token via issueSetupToken during sync;
     // here we check the token digest is preserved across a restart.
@@ -103,16 +103,17 @@ describe("member store persistence", () => {
 
     applyStoreState(snapshot);
     // The account itself must be findable by identity after restore.
-    expect(buildMemberCard(user.id)?.membershipId).toBe("MSAP-PERSIST-0002");
+    const restoredCard = await buildMemberCard(user.id);
+    expect(restoredCard?.membershipId).toBe("MSAP-PERSIST-0002");
   });
 
-  it("keeps issuing fresh revisions after a restore (id counters advanced)", () => {
+  it("keeps issuing fresh revisions after a restore (id counters advanced)", async () => {
     const user = createMember("MSAP-PERSIST-0003", "persist3@example.com");
     issueCard(user.id);
     const snapshot = snapshotStoreState();
 
     applyStoreState(snapshot);
-    const restored = buildMemberCard(user.id);
+    const restored = await buildMemberCard(user.id);
     if (!restored) return;
 
     // New members after restore get ids that never collide with restored ones.
@@ -121,7 +122,7 @@ describe("member store persistence", () => {
     expect(next.id).not.toBe(user.id);
   });
 
-  it("a persisted runtime signature overrides the default; a null one does not", () => {
+  it("a persisted runtime signature overrides the default; a null one does not", async () => {
     clearPresidentSignatureUrl();
     const user = createMember("MSAP-PERSIST-0005", "persist5@example.com");
 
@@ -129,7 +130,7 @@ describe("member store persistence", () => {
     setPresidentSignatureUrl(PNG_1PX);
     const withSig = snapshotStoreState();
     applyStoreState(withSig);
-    expect(buildMemberCard(user.id)?.president.signatureUrl).toBe(PNG_1PX);
+    expect((await buildMemberCard(user.id))?.president.signatureUrl).toBe(PNG_1PX);
 
     // A persisted null must NOT kill the env fallback: after restore the
     // lazy getter re-reads PRESIDENT_SIGNATURE_URL (unset here -> null),
@@ -137,10 +138,10 @@ describe("member store persistence", () => {
     clearPresidentSignatureUrl();
     const withNull = snapshotStoreState();
     applyStoreState(withNull);
-    expect(buildMemberCard(user.id)?.president.signatureUrl).toBeNull();
+    expect((await buildMemberCard(user.id))?.president.signatureUrl).toBeNull();
   });
 
-  it("issueCardToken is stable across restores (same secret, same token)", () => {
+  it("issueCardToken is stable across restores (same secret, same token)", async () => {
     const at = new Date("2026-08-13T10:00:00Z");
     const token = issueCardToken("MSAP-PERSIST-0001", 1, at);
     const again = issueCardToken("MSAP-PERSIST-0001", 1, at);
@@ -148,7 +149,7 @@ describe("member store persistence", () => {
     expect(token).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("documents and CV entries survive the round trip too", () => {
+  it("documents and CV entries survive the round trip too", async () => {
     const user = createMember("MSAP-PERSIST-0006", "persist6@example.com");
     addCVEntry(user.id, {
       type: "Education",

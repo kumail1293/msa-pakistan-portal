@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, like, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -17,6 +17,8 @@ import {
   emailQueue,
   lifecycleCases,
   memberCards,
+  membershipApplications,
+  MembershipApplication,
   InsertUser,
   User,
   LocalCouncil,
@@ -480,5 +482,197 @@ export async function getAuditLogs(limit: number = 100) {
   } catch (error) {
     console.warn("[Database] Failed to get audit logs:", error);
     return [];
+  }
+}
+
+// ============ MEMBERSHIP APPLICATIONS (local/offline) ============
+
+/**
+ * List membership applications with optional status filter and search.
+ */
+export async function listMembershipApplications(params: {
+  status?: string;
+  query?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<MembershipApplication[]> {
+  const pool = getPoolDirect();
+  if (!pool) return [];
+
+  try {
+    const conn = await pool.getConnection();
+    try {
+      let whereClause = "WHERE 1=1";
+      const args: any[] = [];
+
+      if (params.status) {
+        whereClause += " AND status = ?";
+        args.push(params.status);
+      }
+      if (params.query) {
+        whereClause += " AND (fullName LIKE ? OR email LIKE ? OR cnic LIKE ? OR membershipId LIKE ?)";
+        const q = `%${params.query}%`;
+        args.push(q, q, q, q);
+      }
+
+      const limit = params.limit || 50;
+      const offset = params.offset || 0;
+
+      const [rows] = await conn.query(
+        `SELECT * FROM membership_applications ${whereClause} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+        [...args, limit, offset]
+      );
+      return rows as MembershipApplication[];
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.warn("[Database] Failed to list membership applications:", error);
+    return [];
+  }
+}
+
+/**
+ * Get a single membership application by ID.
+ */
+export async function getMembershipApplication(
+  applicationId: number
+): Promise<MembershipApplication | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  try {
+    const rows = await db
+      .select()
+      .from(membershipApplications)
+      .where(eq(membershipApplications.id, applicationId))
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    console.warn("[Database] Failed to get membership application:", error);
+    return null;
+  }
+}
+
+/**
+ * Approve a membership application. Creates the member account, assigns
+ * a membership ID, and returns the created user.
+ */
+export async function approveMembershipApplication(
+  applicationId: number,
+  membershipId: string,
+  reviewedBy: string,
+  notes?: string
+): Promise<User | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  try {
+    // Get the application
+    const appRows = await db
+      .select()
+      .from(membershipApplications)
+      .where(eq(membershipApplications.id, applicationId))
+      .limit(1);
+    const app = appRows[0];
+    if (!app || app.status !== "pending") return null;
+
+    // Check if membership ID is already taken
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.membershipId, membershipId))
+      .limit(1);
+    if (existingUser.length > 0) {
+      throw new Error(`Membership ID ${membershipId} is already in use.`);
+    }
+
+    // Create the user account
+    const user = memberAccounts.upsertUser({
+      openId: `member:${membershipId}`,
+      email: app.email.toLowerCase(),
+      name: app.fullName,
+      phone: app.contactNumber,
+      institution: app.institute,
+      degree: app.courseOfStudy,
+      graduationYear: app.graduationDate ? parseInt(app.graduationDate) : undefined,
+      discipline: app.courseOfStudy,
+      yearOfStudy: app.yearOfStudy,
+      localCouncil: undefined,
+      membershipId: membershipId,
+      membershipStatus: "Active",
+      profilePhotoUrl: app.profilePhotoUrl || undefined,
+      loginMethod: "member-password",
+    });
+
+    // Issue a password setup token
+    const issued = memberAccounts.issueSetupToken(user.id);
+
+    // Update the application status
+    await db
+      .update(membershipApplications)
+      .set({
+        status: "approved",
+        membershipId: membershipId,
+        reviewedBy: reviewedBy,
+        reviewedAt: new Date(),
+        reviewNotes: notes || null,
+      })
+      .where(eq(membershipApplications.id, applicationId));
+
+    // Store the membership ID for the setup email
+    if (issued) {
+      // Queue the setup email (best-effort, async)
+      const { queuePasswordSetupEmail } = await import("./services/emailService");
+      void queuePasswordSetupEmail({
+        memberName: user.name || "MSAP Member",
+        membershipId: membershipId,
+        recipientEmail: user.email,
+        setupUrl: `${memberAccounts.getPortalBaseUrl()}/set-password?token=${issued.rawToken}`,
+        expiresAt: issued.expiresAt,
+      });
+    }
+
+    return user;
+  } catch (error) {
+    console.error("[Database] Failed to approve membership application:", error);
+    throw error;
+  }
+}
+
+/**
+ * Reject a membership application.
+ */
+export async function rejectMembershipApplication(
+  applicationId: number,
+  reviewedBy: string,
+  notes?: string
+): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+
+  try {
+    const appRows = await db
+      .select()
+      .from(membershipApplications)
+      .where(eq(membershipApplications.id, applicationId))
+      .limit(1);
+    const app = appRows[0];
+    if (!app || app.status !== "pending") return false;
+
+    await db
+      .update(membershipApplications)
+      .set({
+        status: "rejected",
+        reviewedBy: reviewedBy,
+        reviewedAt: new Date(),
+        reviewNotes: notes || null,
+      })
+      .where(eq(membershipApplications.id, applicationId));
+
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to reject membership application:", error);
+    return false;
   }
 }

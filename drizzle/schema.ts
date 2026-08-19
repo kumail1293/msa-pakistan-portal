@@ -425,35 +425,7 @@ export type LifecycleCase = typeof lifecycleCases.$inferSelect;
 export type InsertLifecycleCase = typeof lifecycleCases.$inferInsert;
 
 // ============ GOVERNANCE VERSIONING (config-driven rules) ============
-//
-// Constitutional / bylaw VALUES are never hard-coded in application code.
-// Each governance document that gets formally approved (constitution,
-// bylaws, a BCP/CCP outcome) becomes a VERSIONED set of policy parameters
-// that the portal resolves at runtime:
-//
-//   governance_versions   one row per approved/rejected governance document
-//   policy_parameters     the rules of that document (key -> value)
-//
-// A future approved BCP/CCP only writes a new governance version + its
-// parameters — no application code change. Values like membership.fee,
-// election.votingRule or finance.presidentApprovalThreshold are read from
-// the CURRENT effective version, never from literals scattered in code.
-//
-// Lifecycle (matches the BCP/CCP workflow in later phases):
-//   Draft → Submitted → Reviewed → Presented → Voted →
-//   Approved / Rejected / Amended → Effective → supersedes → new version
-//
-// Resolution rule for readers: the current effective version is the one with
-// status = "effective" whose effectiveFrom <= now < effectiveTo (or no
-// effectiveTo). A parameter lookup (key) hits that version first and falls
-// back through superseded versions in reverse order so policy changes are
-// always traceable to the document and clause that produced them.
 
-/**
- * One governance document/version. `status` tracks the BCP/CCP lifecycle;
- * `supersedesVersionId` links "New Governance Version → previous version";
- * `effectiveFrom`/`effectiveTo` bound when its rules are live.
- */
 export const governanceVersions = mysqlTable(
   "governance_versions",
   {
@@ -473,7 +445,6 @@ export const governanceVersions = mysqlTable(
     ])
       .default("draft")
       .notNull(),
-    // The version this one replaces once it becomes effective.
     supersedesVersionId: int("supersedesVersionId"),
     effectiveFrom: timestamp("effectiveFrom"),
     effectiveTo: timestamp("effectiveTo"),
@@ -492,13 +463,6 @@ export const governanceVersions = mysqlTable(
 export type GovernanceVersion = typeof governanceVersions.$inferSelect;
 export type InsertGovernanceVersion = typeof governanceVersions.$inferInsert;
 
-/**
- * One rule of a governance version. `value` is stored as JSON so a rule can
- * be a scalar (membership.fee = 1000) or structured data (eligibility
- * criteria, voting rule configuration); `datatype` tells the resolver how to
- * coerce the stored value back to the typed form callers expect. Unique per
- * (version, key): a version defines each rule exactly once.
- */
 export const policyParameters = mysqlTable(
   "policy_parameters",
   {
@@ -509,7 +473,6 @@ export const policyParameters = mysqlTable(
     datatype: mysqlEnum("datatype", ["string", "number", "boolean", "json"])
       .default("string")
       .notNull(),
-    // The clause of the source document this rule comes from (traceability).
     sourceClause: varchar("sourceClause", { length: 255 }),
     description: text("description"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -526,10 +489,6 @@ export type PolicyParameter = typeof policyParameters.$inferSelect;
 export type InsertPolicyParameter = typeof policyParameters.$inferInsert;
 
 // ============ MEMBER CARDS (issuance + holder-signature workflow) ============
-//
-// One row per member. The card renders ONLY the approved identity snapshot;
-// holder signatures go through submit → pending → approve/reject; approval
-// (re)issues the card with a new version and a fresh HMAC verification token.
 
 export const memberCards = mysqlTable(
   "member_cards",
@@ -576,3 +535,75 @@ export const memberCards = mysqlTable(
 export type MemberCardRow = typeof memberCards.$inferSelect;
 export type InsertMemberCardRow = typeof memberCards.$inferInsert;
 
+// ============ MEMBERSHIP APPLICATIONS (local, offline-capable) ============
+//
+// When MSAP_APPS_SCRIPT_URL is not configured, membership form submissions
+// are stored locally in this table instead of being forwarded to the Google
+// Apps Script. Admins review and approve/reject applications through the
+// portal. Approved applications create the member account automatically.
+
+export const membershipApplications = mysqlTable(
+  "membership_applications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    // Identity
+    email: varchar("email", { length: 320 }).notNull(),
+    fullName: varchar("fullName", { length: 150 }).notNull(),
+    personalEmail: varchar("personalEmail", { length: 320 }),
+    contactNumber: varchar("contactNumber", { length: 25 }).notNull(),
+    age: int("age").notNull(),
+    dateOfBirth: varchar("dateOfBirth", { length: 30 }).notNull(),
+    cnic: varchar("cnic", { length: 20 }).notNull(),
+    gender: varchar("gender", { length: 30 }).notNull(),
+    cityOfResidence: varchar("cityOfResidence", { length: 100 }).notNull(),
+    address: varchar("address", { length: 500 }).notNull(),
+    reasonForJoining: varchar("reasonForJoining", { length: 2000 }).notNull(),
+    // Academic
+    courseLevel: varchar("courseLevel", { length: 50 }).notNull(),
+    courseOfStudy: varchar("courseOfStudy", { length: 200 }).notNull(),
+    otherCourse: varchar("otherCourse", { length: 255 }),
+    yearOfStudy: varchar("yearOfStudy", { length: 100 }).notNull(),
+    institute: varchar("institute", { length: 255 }).notNull(),
+    otherInstitute: varchar("otherInstitute", { length: 255 }),
+    collegeRollNumber: varchar("collegeRollNumber", { length: 100 }).notNull(),
+    // Source & payment
+    discoverySources: json("discoverySources").$type<string[]>(),
+    otherDiscoverySource: varchar("otherDiscoverySource", { length: 255 }),
+    paymentAccountName: varchar("paymentAccountName", { length: 255 }).notNull(),
+    graduationDate: varchar("graduationDate", { length: 30 }),
+    conflictOfInterest: varchar("conflictOfInterest", { length: 2000 }).default("No"),
+    conflictOrganization: varchar("conflictOrganization", { length: 255 }),
+    conflictRole: varchar("conflictRole", { length: 255 }),
+    // File uploads (data URLs stored for review; uploaded to storage on approval)
+    profilePhotoUrl: varchar("profilePhotoUrl", { length: 500 }),
+    feeReceiptUrl: varchar("feeReceiptUrl", { length: 500 }),
+    cnicCopyUrl: varchar("cnicCopyUrl", { length: 500 }),
+    // Acknowledgements
+    termsAccepted: boolean("termsAccepted").default(false),
+    undertakingAccepted: boolean("undertakingAccepted").default(false),
+    introductionAcknowledged: boolean("introductionAcknowledged").default(false),
+    incompleteAcknowledgement: boolean("incompleteAcknowledgement").default(false),
+    // Workflow
+    status: mysqlEnum("status", [
+      "pending",
+      "approved",
+      "rejected",
+    ]).default("pending").notNull(),
+    membershipId: varchar("membershipId", { length: 50 }),
+    reviewedBy: varchar("reviewedBy", { length: 150 }),
+    reviewedAt: timestamp("reviewedAt"),
+    reviewNotes: text("reviewNotes"),
+    // Metadata
+    submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    emailIdx: index("app_email_idx").on(table.email),
+    cnicIdx: index("app_cnic_idx").on(table.cnic),
+    statusIdx: index("app_status_idx").on(table.status),
+  })
+);
+
+export type MembershipApplication = typeof membershipApplications.$inferSelect;
+export type InsertMembershipApplication = typeof membershipApplications.$inferInsert;

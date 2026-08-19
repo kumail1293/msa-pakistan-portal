@@ -502,7 +502,7 @@ export const appRouter = router({
             message: UNAUTHED_ERR_MSG,
           });
         }
-        const card = memberAccounts.buildMemberCard(ctx.user.id);
+        const card = await memberAccounts.buildMemberCard(ctx.user.id);
         if (!card) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -529,7 +529,7 @@ export const appRouter = router({
               message: UNAUTHED_ERR_MSG,
             });
           }
-          const card = memberAccounts.submitHolderSignature(
+          const card = await memberAccounts.submitHolderSignature(
             ctx.user.id,
             input.dataUrl
           );
@@ -556,7 +556,7 @@ export const appRouter = router({
               message: UNAUTHED_ERR_MSG,
             });
           }
-          const card = memberAccounts.requestCardReissue(ctx.user.id);
+          const card = await memberAccounts.requestCardReissue(ctx.user.id);
           if (!card) {
             throw new TRPCError({
               code: "NOT_FOUND",
@@ -1064,7 +1064,7 @@ export const appRouter = router({
         )
         .mutation(async ({ input }) => {
           try {
-            await sendTestEmail(input.to, input.subject);
+            await sendTestEmail(input.to);
             return { sent: true } as const;
           } catch (error) {
             console.error("[Email] Test send failed:", error);
@@ -1098,6 +1098,89 @@ export const appRouter = router({
             resendSetupEmail: input.resendSetupEmail,
           })
         ),
+    }),
+
+    // ===== Membership applications (local/offline review) =====
+    membershipApplications: router({
+      /** List membership applications with optional status filter. */
+      list: officialModuleProcedure("recruitment")
+        .input(
+          z.object({
+            status: z.enum(["pending", "approved", "rejected"]).optional(),
+            query: z.string().max(120).optional(),
+            limit: z.number().int().min(1).max(500).default(50),
+            offset: z.number().int().min(0).default(0),
+          })
+        )
+        .query(async ({ input }) => {
+          return db.listMembershipApplications(input);
+        }),
+
+      /** Get full details of one application. */
+      get: officialModuleProcedure("recruitment")
+        .input(z.object({ applicationId: z.number().int().positive() }))
+        .query(async ({ input }) => {
+          return db.getMembershipApplication(input.applicationId);
+        }),
+
+      /**
+       * Approve a membership application. Creates the member account,
+       * assigns a membership ID, and issues a password setup token.
+       */
+      approve: officialModuleProcedure("recruitment")
+        .input(
+          z.object({
+            applicationId: z.number().int().positive(),
+            membershipId: z.string().min(2).max(50),
+            notes: z.string().max(1000).optional(),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const actor = ctx.user;
+          if (!actor) {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+          }
+          const result = db.approveMembershipApplication(
+            input.applicationId,
+            input.membershipId,
+            actor.name || actor.email,
+            input.notes
+          );
+          if (!result) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Application not found or already processed.",
+            });
+          }
+          return { success: true, user: result };
+        }),
+
+      /** Reject a membership application. */
+      reject: officialModuleProcedure("recruitment")
+        .input(
+          z.object({
+            applicationId: z.number().int().positive(),
+            notes: z.string().max(1000).optional(),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const actor = ctx.user;
+          if (!actor) {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+          }
+          const result = db.rejectMembershipApplication(
+            input.applicationId,
+            actor.name || actor.email,
+            input.notes
+          );
+          if (!result) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Application not found or already processed.",
+            });
+          }
+          return { success: true };
+        }),
     }),
 
     // ===== Membership card issuance (National Office) =====
@@ -1134,7 +1217,7 @@ export const appRouter = router({
           })
         )
         .mutation(async ({ input }) => {
-          const card = memberAccounts.reviewCardSignature(
+          const card = await memberAccounts.reviewCardSignature(
             input.userId,
             input.decision,
             input.kind
@@ -1342,6 +1425,24 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         return { success: true };
+      }),
+  }),
+
+  // ============ PUBLIC CONFIG (for branding theme) ============
+  config: router({
+    /**
+     * Public endpoint: get all configs by category (for branding theme).
+     * Only returns branding-related configs; other categories are not exposed.
+     */
+    getAll: publicProcedure
+      .input(z.object({ category: z.string().optional() }).optional())
+      .query(async ({ input }) => {
+        const configs = await db.getAllConfiguration();
+        const category = input?.category;
+        if (category) {
+          return configs.filter((c) => c.category === category);
+        }
+        return configs;
       }),
   }),
 });

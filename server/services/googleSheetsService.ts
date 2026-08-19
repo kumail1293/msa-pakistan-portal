@@ -1,10 +1,11 @@
 /**
  * MSAP membership workflow bridge.
  *
- * The Google Apps Script remains the source of truth for membership workflow,
- * approvals, membership IDs and document generation. The portal server talks
- * to the Apps Script web app server-to-server so the Google endpoint never
- * needs to be exposed to browser CORS or hold credentials in the client.
+ * When MSAP_APPS_SCRIPT_URL is configured, the Google Apps Script is the
+ * source of truth for membership workflow, approvals, and membership IDs.
+ * When it is NOT configured, the portal operates fully offline: form
+ * submissions are stored in the local membership_applications table and
+ * admin approval creates the member account directly.
  */
 
 export interface MembershipUpload {
@@ -56,12 +57,16 @@ export interface AppsScriptResponse<T = unknown> {
   error?: string;
 }
 
-function getAppsScriptUrl() {
+function getAppsScriptUrl(): string {
   const url = process.env.MSAP_APPS_SCRIPT_URL?.trim();
   if (!url) {
     throw new Error("MSAP_APPS_SCRIPT_URL is not configured");
   }
   return url;
+}
+
+function hasAppsScript(): boolean {
+  return !!process.env.MSAP_APPS_SCRIPT_URL?.trim();
 }
 
 function parseAppsScriptResponse<T>(text: string, status: number): AppsScriptResponse<T> {
@@ -142,12 +147,225 @@ export async function postToMSAPAppsScript<T = unknown>(
 export async function submitMembershipApplication(
   application: MembershipApplication
 ) {
+  // When Apps Script is not configured, store locally
+  if (!hasAppsScript()) {
+    return submitMembershipApplicationLocal(application);
+  }
+
   const response = await postToMSAPAppsScript<{
     applicationRef?: string;
     applicationId?: string;
   }>("submitApplication", application);
 
   return response;
+}
+
+/**
+ * Store a membership application locally (no Google Apps Script).
+ * The application will be reviewed by an admin through the portal.
+ */
+async function submitMembershipApplicationLocal(
+  application: MembershipApplication
+): Promise<AppsScriptResponse<{ applicationRef?: string }>> {
+  // Import here to avoid circular dependencies at module load
+  const { getPoolDirect } = await import("../db");
+  const pool = getPoolDirect();
+  if (!pool) {
+    throw new Error(
+      "Neither MSAP_APPS_SCRIPT_URL nor DATABASE_URL is configured. " +
+      "Cannot store membership application."
+    );
+  }
+
+  try {
+    const conn = await pool.getConnection();
+    try {
+      // Check for duplicate CNIC
+      const [existing] = await conn.query(
+        "SELECT id, status FROM membership_applications WHERE cnic = ?",
+        [application.cnic]
+      );
+      const rows = existing as any[];
+      if (rows.length > 0) {
+        if (rows[0].status === "approved") {
+          return {
+            ok: false,
+            message: "An application with this CNIC has already been approved.",
+          };
+        }
+        if (rows[0].status === "pending") {
+          return {
+            ok: false,
+            message: "An application with this CNIC is already pending review.",
+          };
+        }
+      }
+
+      // Check for duplicate email
+      const [emailRows] = await conn.query(
+        "SELECT id, status FROM membership_applications WHERE email = ?",
+        [application.email]
+      );
+      const eRows = emailRows as any[];
+      if (eRows.length > 0) {
+        if (eRows[0].status === "approved") {
+          return {
+            ok: false,
+            message: "An application with this email has already been approved.",
+          };
+        }
+        if (eRows[0].status === "pending") {
+          return {
+            ok: false,
+            message: "An application with this email is already pending review.",
+          };
+        }
+      }
+
+      // Store uploads in the local filesystem via storagePut
+      const { storagePut } = await import("../storage");
+      let profilePhotoUrl: string | null = null;
+      let feeReceiptUrl: string | null = null;
+      let cnicCopyUrl: string | null = null;
+
+      if (application.profilePhoto) {
+        const buf = Buffer.from(application.profilePhoto.base64, "base64");
+        const ext = application.profilePhoto.mimeType.includes("png") ? ".png" : ".jpg";
+        const key = `applications/photos/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+        const result = await storagePut(key, buf, application.profilePhoto.mimeType);
+        profilePhotoUrl = result.url;
+      }
+
+      if (application.feeReceipt) {
+        const buf = Buffer.from(application.feeReceipt.base64, "base64");
+        const ext = application.feeReceipt.mimeType.includes("pdf") ? ".pdf" : ".jpg";
+        const key = `applications/receipts/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+        const result = await storagePut(key, buf, application.feeReceipt.mimeType);
+        feeReceiptUrl = result.url;
+      }
+
+      if (application.cnicCopy) {
+        const buf = Buffer.from(application.cnicCopy.base64, "base64");
+        const ext = application.cnicCopy.mimeType.includes("pdf") ? ".pdf" : ".jpg";
+        const key = `applications/cnic/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+        const result = await storagePut(key, buf, application.cnicCopy.mimeType);
+        cnicCopyUrl = result.url;
+      }
+
+      // Insert the application
+      await conn.query(
+        `INSERT INTO membership_applications
+          (email, fullName, personalEmail, contactNumber, age, dateOfBirth,
+           cnic, gender, cityOfResidence, address, reasonForJoining,
+           courseLevel, courseOfStudy, otherCourse, yearOfStudy, institute,
+           otherInstitute, collegeRollNumber, discoverySources, otherDiscoverySource,
+           paymentAccountName, graduationDate, conflictOfInterest, conflictOrganization,
+           conflictRole, profilePhotoUrl, feeReceiptUrl, cnicCopyUrl,
+           termsAccepted, undertakingAccepted, introductionAcknowledged,
+           incompleteAcknowledgement, status)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          application.email,
+          application.fullName,
+          application.personalEmail || null,
+          application.contactNumber,
+          application.age,
+          application.dateOfBirth,
+          application.cnic,
+          application.gender,
+          application.cityOfResidence,
+          application.address,
+          application.reasonForJoining,
+          application.courseLevel,
+          application.courseOfStudy,
+          application.otherCourse || null,
+          application.yearOfStudy,
+          application.institute,
+          application.otherInstitute || null,
+          application.collegeRollNumber,
+          JSON.stringify(application.discoverySources),
+          application.otherDiscoverySource || null,
+          application.paymentAccountName,
+          application.graduationDate || null,
+          application.conflictOfInterest || "No",
+          application.conflictOrganization || null,
+          application.conflictRole || null,
+          profilePhotoUrl,
+          feeReceiptUrl,
+          cnicCopyUrl,
+          application.termsAccepted,
+          application.undertakingAccepted,
+          application.introductionAcknowledged,
+          application.incompleteAcknowledgement,
+          "pending",
+        ]
+      );
+
+      return {
+        ok: true,
+        message: "Application submitted successfully. It will be reviewed by an administrator.",
+        data: { applicationRef: `LOCAL-${Date.now()}` },
+      };
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.error("[MembershipLocal] Failed to store application:", error);
+    throw new Error("Failed to store membership application locally.");
+  }
+}
+
+// ============ Local membership lookup (offline mode) ============
+
+/**
+ * Look up a member from the local membership_applications table.
+ * Used when MSAP_APPS_SCRIPT_URL is not configured.
+ */
+export async function lookupLocalMembership(
+  identifier: string
+): Promise<MembershipLookup | null> {
+  const { getPoolDirect } = await import("../db");
+  const pool = getPoolDirect();
+  if (!pool) return null;
+
+  try {
+    const conn = await pool.getConnection();
+    try {
+      // Search by membership ID, email, or CNIC
+      const [rows] = await conn.query(
+        `SELECT * FROM membership_applications
+         WHERE status = 'approved'
+           AND (membershipId = ? OR email = ? OR personalEmail = ? OR cnic = ?)
+         LIMIT 1`,
+        [identifier, identifier, identifier, identifier]
+      );
+      const appRows = rows as any[];
+      if (appRows.length === 0) return null;
+
+      const row = appRows[0];
+      return {
+        found: true,
+        approved: true,
+        membershipId: row.membershipId ?? undefined,
+        email: row.email ?? undefined,
+        personalEmail: row.personalEmail ?? undefined,
+        name: row.fullName ?? undefined,
+        phone: row.contactNumber ?? undefined,
+        discipline: row.courseOfStudy ?? undefined,
+        yearOfStudy: row.yearOfStudy ?? undefined,
+        graduationYear: row.graduationDate ?? undefined,
+        institute: row.institute ?? undefined,
+        localCouncil: undefined,
+        status: "Active",
+        profilePhotoUrl: row.profilePhotoUrl ?? undefined,
+      };
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.warn("[MembershipLocal] Lookup failed:", error);
+    return null;
+  }
 }
 
 /**
@@ -182,6 +400,11 @@ export type MembershipLookup = {
 export async function lookupMembership(
   identifier: string
 ): Promise<MembershipLookup | null> {
+  // When Apps Script is not configured, fall back to local lookup
+  if (!hasAppsScript()) {
+    return lookupLocalMembership(identifier);
+  }
+
   try {
     const response = await postToMSAPAppsScript<MembershipLookup>(
       "lookupMember",

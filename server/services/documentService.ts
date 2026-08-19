@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { MemberCardData } from "./memberAccountService";
+import { getBranding, getOrgName, getOrgFullName, getOrgShortName, getPresidentName, getSerialPrefix } from "../config/branding";
 
 /**
  * Directory of this module, independent of the process working directory.
@@ -64,9 +65,10 @@ export async function generateMembershipLetter(
     margin: 50,
   });
 
-  // Create PDF content
-  doc.fontSize(20).font("Helvetica-Bold").text("MSAP PAKISTAN", { align: "center" });
-  doc.fontSize(12).font("Helvetica").text("Medical Students' Association of Pakistan", { align: "center" });
+  // Create PDF content (branding-aware)
+  const branding = await getBranding();
+  doc.fontSize(20).font("Helvetica-Bold").text(`${branding.orgShortName.toUpperCase()} PAKISTAN`, { align: "center" });
+  doc.fontSize(12).font("Helvetica").text(branding.orgFullName, { align: "center" });
   doc.moveDown();
 
   doc.fontSize(14).font("Helvetica-Bold").text("MEMBERSHIP LETTER", { align: "center" });
@@ -94,13 +96,13 @@ export async function generateMembershipLetter(
   doc.moveDown();
 
   doc.text(
-    "The member is entitled to all privileges and benefits as per the Constitution and Bylaws of MSAP Pakistan."
+    `The member is entitled to all privileges and benefits as per the Constitution and Bylaws of ${branding.orgName}.`
   );
   doc.moveDown(2);
 
   doc.text("Authorized by:");
   doc.moveDown();
-  doc.text(context.presidentName || "MSAP Pakistan President");
+  doc.text(context.presidentName || `${branding.presidentName}, ${branding.presidentTitle}`);
 
   // Convert to buffer
   const chunks: Buffer[] = [];
@@ -139,9 +141,10 @@ export async function generateMembershipCard(
   // Card background (simulated with border)
   doc.rect(10, 10, 180, 300).stroke();
 
-  // MSAP Logo area
-  doc.fontSize(10).font("Helvetica-Bold").text("MSAP", { align: "center" });
-  doc.fontSize(8).font("Helvetica").text("Pakistan", { align: "center" });
+  // Logo area (branding-aware)
+  const letterBranding = await getBranding();
+  doc.fontSize(10).font("Helvetica-Bold").text(letterBranding.orgShortName, { align: "center" });
+  doc.fontSize(8).font("Helvetica").text(letterBranding.orgName.replace(/.*of\s*/i, ""), { align: "center" });
   doc.moveDown();
 
   // Member name
@@ -228,14 +231,15 @@ const C_IVORY = "#F7F4EA";
 const C_INK = "#23344E";
 const C_INK_SOFT = "#4A5B74";
 
-/** Deterministic serial number: MSAP-{year}-{digits from the membership ID}. */
-function serialOfPdf(
+/** Deterministic serial number: {prefix}-{year}-{digits from the membership ID}. */
+async function serialOfPdf(
   membershipId: string,
   issuedAt: string | Date | null | undefined
-): string {
+): Promise<string> {
+  const prefix = await getSerialPrefix();
   const digits = (membershipId.match(/\d+/g) ?? []).join("").slice(0, 6);
   const year = issuedAt ? new Date(issuedAt).getFullYear() : new Date().getFullYear();
-  return `MSAP-${year}-${(digits || "0001").padStart(4, "0")}`;
+  return `${prefix}-${year}-${(digits || "0001").padStart(4, "0")}`;
 }
 
 /** Draw a deterministic Code-128-style barcode (bars only, navy ink). */
@@ -468,7 +472,7 @@ export async function generatePremiumMembershipCardPdf(
     size: [CR80_W, CR80_H],
     margin: 0,
     info: {
-      Title: `MSAP Membership Card - ${card.memberName}`,
+      Title: `${await getOrgShortName()} Membership Card - ${card.memberName}`,
       Author: "Medical Students' Association of Pakistan",
       Subject: "National Membership Card",
       CreationDate: new Date(),
@@ -543,6 +547,7 @@ export async function generatePremiumMembershipCardPdf(
 
   // ---------- Header ----------
   const logo = loadLogo("logo-horizontal-compact-white.png");
+  const headerBranding = await getBranding();
   if (logo) {
     doc.image(logo, px(14), px(11), { width: px(90) });
   } else {
@@ -550,7 +555,7 @@ export async function generatePremiumMembershipCardPdf(
       .font("Helvetica-Bold")
       .fontSize(pt(8))
       .fillColor("#ffffff")
-      .text("MSAP PAKISTAN", px(14), px(14));
+      .text(`${headerBranding.orgShortName.toUpperCase()} PAKISTAN`, px(14), px(14));
   }
   doc
     .font("Helvetica-Bold")
@@ -601,11 +606,12 @@ export async function generatePremiumMembershipCardPdf(
     .strokeColor("#ffffff")
     .strokeOpacity(0.55)
     .stroke();
+  const shortName = await getOrgShortName();
   doc
     .font("Helvetica-Bold")
     .fontSize(pt(5.2))
     .fillColor(C_NAVY)
-    .text("MSAP", holCx - holR, holCy - pt(3.5), { width: holR * 2, align: "center" });
+    .text(shortName, holCx - holR, holCy - pt(3.5), { width: holR * 2, align: "center" });
   doc.restore();
 
   // ---------- Body: photo + identity ----------
@@ -977,7 +983,7 @@ export async function generateCertificate(
 
   doc.text("Authorized by:");
   doc.moveDown();
-  doc.text(context.presidentName || "MSAP Pakistan");
+  doc.text(context.presidentName || `${await getOrgName()}`);
 
   // Convert to buffer
   const chunks: Buffer[] = [];
