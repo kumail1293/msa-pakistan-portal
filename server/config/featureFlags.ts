@@ -13,7 +13,7 @@
  */
 
 import { eq, and, gte, lte } from "drizzle-orm";
-import { featureFlags } from "../../drizzle/schema";
+import { featureFlags } from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
 
 // ============================================================================
@@ -106,7 +106,7 @@ function evaluateFlag(
     environment: string | null;
     organizationId: number | null;
     allowedRoles: string[] | null;
-    percentage: number;
+    percentage: number | null;
   },
   context: FeatureFlagContext
 ): boolean {
@@ -129,9 +129,9 @@ function evaluateFlag(
   }
 
   // 5. Percentage rollout (deterministic based on userId)
-  if (flag.percentage < 100 && context.userId !== undefined) {
+  if ((flag.percentage ?? 100) < 100 && context.userId !== undefined) {
     // Simple hash: userId % 100 < percentage
-    if ((context.userId % 100) >= flag.percentage) return false;
+    if ((context.userId % 100) >= (flag.percentage ?? 100)) return false;
   }
 
   return true;
@@ -173,7 +173,7 @@ export async function getAllFeatureFlags(): Promise<
       environment: r.environment,
       organizationId: r.organizationId,
       allowedRoles: r.allowedRoles,
-      percentage: r.percentage,
+      percentage: r.percentage ?? 100,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }));

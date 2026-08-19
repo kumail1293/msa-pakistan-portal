@@ -22,7 +22,7 @@
  */
 
 import { eq, and, desc, like, sql } from "drizzle-orm";
-import { auditEvents } from "../../drizzle/schema";
+import { auditEvents } from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
 
 // ============================================================================

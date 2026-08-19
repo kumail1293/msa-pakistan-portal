@@ -20,7 +20,7 @@ import {
   roles,
   rolePermissions,
   userRoles,
-} from "../../drizzle/schema";
+} from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
 
 // ============================================================================
@@ -134,7 +134,7 @@ export async function getUserPermissions(
 
     // Resolve permission keys
     const permKeys = new Set<string>();
-    for (const permId of permIds) {
+    for (const permId of Array.from(permIds)) {
       const [perm] = await db
         .select({ key: permissions.key })
         .from(permissions)
@@ -538,6 +538,7 @@ export const DEFAULT_ROLES: Array<{
   description: string;
   scope: string;
   isSystem: boolean;
+  isDefault?: boolean;
   hierarchyLevel: number;
   permissions: string[];
 }> = [

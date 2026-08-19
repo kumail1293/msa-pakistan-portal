@@ -227,3 +227,188 @@ export const auditEvents = mysqlTable(
 
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type InsertAuditEvent = typeof auditEvents.$inferInsert;
+
+// ============================================================================
+// WORKFLOW ENGINE
+// ============================================================================
+
+export const workflows = mysqlTable("workflows", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  entityType: varchar("entityType", { length: 50 }).notNull(),
+  version: int("version").default(1).notNull(),
+  status: mysqlEnum("status", ["draft", "active", "archived"]).default("draft").notNull(),
+  config: json("config"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Workflow = typeof workflows.$inferSelect;
+export type InsertWorkflow = typeof workflows.$inferInsert;
+
+export const workflowStages = mysqlTable(
+  "workflow_stages",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    workflowId: int("workflowId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    type: mysqlEnum("type", [
+      "start", "form", "review", "approval", "parallel_approval",
+      "conditional", "score", "assignment", "notification", "timer",
+      "escalation", "webhook", "integration", "generate_document",
+      "generate_certificate", "payment", "end",
+    ]).notNull(),
+    order: int("order").notNull(),
+    config: json("config"),
+    nextStageId: int("nextStageId"),
+    conditions: json("conditions"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    workflowIdx: index("ws_workflow_idx").on(table.workflowId),
+    orderIdx: index("ws_order_idx").on(table.workflowId, table.order),
+  })
+);
+
+export type WorkflowStage = typeof workflowStages.$inferSelect;
+export type InsertWorkflowStage = typeof workflowStages.$inferInsert;
+
+export const workflowInstances = mysqlTable(
+  "workflow_instances",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    workflowId: int("workflowId").notNull(),
+    entityType: varchar("entityType", { length: 50 }).notNull(),
+    entityId: int("entityId").notNull(),
+    currentStageId: int("currentStageId"),
+    status: mysqlEnum("status", [
+      "running", "completed", "rejected", "cancelled", "paused",
+    ]).default("running").notNull(),
+    startedBy: int("startedBy"),
+    startedAt: timestamp("startedAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+    metadata: json("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    workflowIdx: index("wi_workflow_idx").on(table.workflowId),
+    entityIdx: index("wi_entity_idx").on(table.entityType, table.entityId),
+    statusIdx: index("wi_status_idx").on(table.status),
+  })
+);
+
+export type WorkflowInstance = typeof workflowInstances.$inferSelect;
+export type InsertWorkflowInstance = typeof workflowInstances.$inferInsert;
+
+export const workflowTasks = mysqlTable(
+  "workflow_tasks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    instanceId: int("instanceId").notNull(),
+    stageId: int("stageId").notNull(),
+    assignedTo: int("assignedTo"),
+    status: mysqlEnum("status", [
+      "pending", "in_progress", "completed", "rejected", "escalated", "overdue",
+    ]).default("pending").notNull(),
+    dueAt: timestamp("dueAt"),
+    completedAt: timestamp("completedAt"),
+    notes: text("notes"),
+    decision: varchar("decision", { length: 100 }),
+    metadata: json("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    instanceIdx: index("wt_instance_idx").on(table.instanceId),
+    assignedIdx: index("wt_assigned_idx").on(table.assignedTo),
+    statusIdx: index("wt_status_idx").on(table.status),
+  })
+);
+
+export type WorkflowTask = typeof workflowTasks.$inferSelect;
+export type InsertWorkflowTask = typeof workflowTasks.$inferInsert;
+
+// ============================================================================
+// FORMS ENGINE
+// ============================================================================
+
+export const forms = mysqlTable("forms", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  version: int("version").default(1).notNull(),
+  status: mysqlEnum("status", ["draft", "active", "archived"]).default("draft").notNull(),
+  usageType: varchar("usageType", { length: 50 }),
+  settings: json("settings"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Form = typeof forms.$inferSelect;
+export type InsertForm = typeof forms.$inferInsert;
+
+export const formFields = mysqlTable(
+  "form_fields",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    formId: int("formId").notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    label: varchar("label", { length: 255 }).notNull(),
+    type: mysqlEnum("type", [
+      "text", "textarea", "number", "email", "phone", "date",
+      "select", "multi_select", "checkbox", "radio", "file",
+      "image", "signature", "divider", "heading", "paragraph",
+    ]).notNull(),
+    required: boolean("required").default(false),
+    placeholder: varchar("placeholder", { length: 255 }),
+    helpText: text("helpText"),
+    defaultValue: varchar("defaultValue", { length: 500 }),
+    options: json("options"),
+    validation: json("validation"),
+    conditions: json("conditions"),
+    order: int("order").notNull(),
+    group: varchar("group", { length: 100 }),
+    width: varchar("width", { length: 20 }).default("full"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    formIdx: index("ff_form_idx").on(table.formId),
+    orderIdx: index("ff_order_idx").on(table.formId, table.order),
+  })
+);
+
+export type FormField = typeof formFields.$inferSelect;
+export type InsertFormField = typeof formFields.$inferInsert;
+
+export const formSubmissions = mysqlTable(
+  "form_submissions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    formId: int("formId").notNull(),
+    submittedBy: int("submittedBy"),
+    entityType: varchar("entityType", { length: 50 }),
+    entityId: int("entityId"),
+    data: json("data").notNull(),
+    status: mysqlEnum("status", [
+      "submitted", "reviewed", "approved", "rejected",
+    ]).default("submitted").notNull(),
+    reviewedBy: int("reviewedBy"),
+    reviewedAt: timestamp("reviewedAt"),
+    reviewNotes: text("reviewNotes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    formIdx: index("fs_form_idx").on(table.formId),
+    submittedIdx: index("fs_submitted_idx").on(table.submittedBy),
+    entityIdx: index("fs_entity_idx").on(table.entityType, table.entityId),
+    statusIdx: index("fs_status_idx").on(table.status),
+  })
+);
+
+export type FormSubmission = typeof formSubmissions.$inferSelect;
+export type InsertFormSubmission = typeof formSubmissions.$inferInsert;
