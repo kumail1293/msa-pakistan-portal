@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSAP Portal - Offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f0faf7 0%, #e8f5f0 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #1B355E;
+    }
+    .container {
+      text-align: center;
+      max-width: 400px;
+      padding: 2rem;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      background: #138A73;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      font-size: 2rem;
+      color: white;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      color: #1B355E;
+    }
+    p {
+      color: #66788D;
+      margin-bottom: 1rem;
+      line-height: 1.6;
+    }
+    .retry-btn {
+      background: #138A73;
+      color: white;
+      border: none;
+      padding: 0.75rem 2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .retry-btn:hover { background: #106E5B; }
+    .features {
+      margin-top: 2rem;
+      text-align: left;
+      font-size: 0.875rem;
+      color: #8A9BAE;
+    }
+    .features li {
+      margin-bottom: 0.25rem;
+      list-style: none;
+    }
+    .features li::before {
+      content: "✓ ";
+      color: #138A73;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <div class="icon" aria-hidden="true">📡</div>
+    <h1>You're Offline</h1>
+    <p>The MSAP Portal requires an internet connection. Please check your network and try again.</p>
+    <button class="retry-btn" onclick="location.reload()" aria-label="Retry loading the page">
+      Try Again
+    </button>
+    <ul class="features" aria-label="Features available offline">
+      <li>Cached pages may still be available</li>
+      <li>Form submissions will sync when online</li>
+      <li>Notifications will appear when connected</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -2498,6 +2498,48 @@ export const appRouter = router({
       }),
     }),
 
+    // ── Enterprise Operations (§147) ────────────────────────────────
+    ops: router({
+      health: publicProcedure.query(async () => {
+        const { enterpriseOpsEngine } = await import("./config/enterpriseOpsEngine");
+        return enterpriseOpsEngine.getHealth();
+      }),
+      metrics: officialModuleProcedure("config").query(async () => {
+        const { enterpriseOpsEngine } = await import("./config/enterpriseOpsEngine");
+        return enterpriseOpsEngine.getMetrics();
+      }),
+      securityHeaders: officialModuleProcedure("config").query(async () => {
+        const { enterpriseOpsEngine } = await import("./config/enterpriseOpsEngine");
+        return enterpriseOpsEngine.getSecurityHeaders();
+      }),
+    }),
+
+    // ── Accessibility (§141) ─────────────────────────────────────────
+    accessibility: router({
+      criteria: publicProcedure.query(async () => {
+        const { accessibilityEngine } = await import("./config/accessibilityEngine");
+        return accessibilityEngine.getWcagCriteria();
+      }),
+      keyboardRules: publicProcedure.query(async () => {
+        const { accessibilityEngine } = await import("./config/accessibilityEngine");
+        return accessibilityEngine.getKeyboardNavigationRules();
+      }),
+      ariaRoles: publicProcedure.query(async () => {
+        const { accessibilityEngine } = await import("./config/accessibilityEngine");
+        return accessibilityEngine.getAriaRoles();
+      }),
+      contrast: publicProcedure.input(z.object({ fg: z.string(), bg: z.string() })).query(async ({ input }) => {
+        const { accessibilityEngine } = await import("./config/accessibilityEngine");
+        const ratio = accessibilityEngine.getContrastRatio(input.fg, input.bg);
+        return {
+          ratio,
+          meetsAA: accessibilityEngine.meetsContrastRequirement(ratio, "AA"),
+          meetsAAA: accessibilityEngine.meetsContrastRequirement(ratio, "AAA"),
+          meetsAALarge: accessibilityEngine.meetsContrastRequirement(ratio, "AA", true),
+        };
+      }),
+    }),
+
     // ── System Info ──────────────────────────────────────────────────
     seedDefaults: superAdminProcedure.mutation(async ({ ctx }) => {
       await seedDefaultConfigs();
