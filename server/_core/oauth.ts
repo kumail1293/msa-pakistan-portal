@@ -10,6 +10,9 @@ import {
 } from "./officialOAuth";
 import * as memberAccounts from "../services/memberAccountService";
 import { MEMBER_SESSION_MAX_AGE_MS } from "../services/memberAuthService";
+import { childLogger } from "./logger";
+
+const log = childLogger("OAuth");
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -78,9 +81,7 @@ export function registerOAuthRoutes(app: Express) {
         member.active === false ||
         member.membershipStatus !== "Active"
       ) {
-        console.warn(
-          `[OAuth] Sign-in refused for ${email}: no active member account with that email.`
-        );
+        log.warn({ email }, "Sign-in refused — no active member account");
         redirectToLoginError("no_account");
         return;
       }
@@ -108,7 +109,7 @@ export function registerOAuthRoutes(app: Express) {
         next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
       res.redirect(302, safeNext);
     } catch (error) {
-      console.error("[OAuth] Official sign-in callback failed", error);
+      log.error({ err: error }, "Official sign-in callback failed");
       redirectToLoginError("failed");
     }
   });

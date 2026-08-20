@@ -32,6 +32,9 @@ import {
 } from "../../drizzle/schema";
 import { getPoolDirect } from "../db";
 import type { MemberStoreSnapshot } from "./memberAccountService";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("MemberStoreDb");
 
 // ============================================================================
 // Helpers
@@ -142,7 +145,7 @@ export async function loadStoreFromDb(): Promise<MemberStoreSnapshot | null> {
       conn.release();
     }
   } catch (error) {
-    console.warn("[MemberStoreDb] Failed to load from database:", error);
+    log.warn({ err: error }, "Failed to load from database");
     return null;
   }
 }
@@ -248,7 +251,7 @@ export async function saveStoreToDb(snapshot: MemberStoreSnapshot): Promise<void
     await conn.commit();
   } catch (error) {
     await conn.rollback().catch(() => {});
-    console.warn("[MemberStoreDb] Failed to save to database:", error);
+    log.warn({ err: error }, "Failed to save to database");
   } finally {
     conn.release();
   }

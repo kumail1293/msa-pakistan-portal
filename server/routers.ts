@@ -29,6 +29,45 @@ import {
   verifyPassword,
   MEMBER_SESSION_MAX_AGE_MS,
 } from "./services/memberAuthService";
+import {
+  getConfig,
+  setConfig,
+  setConfigs,
+  deleteConfig,
+  getAllConfigs,
+  invalidateAllConfigCache,
+  CONFIG_DEFINITIONS,
+  seedDefaultConfigs,
+} from "./config/configService";
+import {
+  getBranding,
+  getEmailBranding,
+} from "./config/branding";
+import {
+  logAuditEvent,
+  logAuditForUser,
+  getAuditEvents,
+  getAuditStats,
+  getEntityAuditHistory,
+  generateCorrelationId,
+} from "./config/auditService";
+import {
+  isFeatureEnabled,
+  getAllFeatureFlags,
+  toggleFeatureFlag,
+  createFeatureFlag,
+  updateFeatureFlag,
+  deleteFeatureFlag,
+  seedDefaultFeatureFlags,
+} from "./config/featureFlags";
+import {
+  checkPermission,
+  getUserPermissions,
+  getUserRoles,
+  assignRole,
+  removeRole,
+  seedRbacDefaults,
+} from "./config/rbac";
 
 /**
  * Generic login failure used for every bad-credential path so the API never
@@ -138,6 +177,18 @@ export const appRouter = router({
         ctx.res.cookie(COOKIE_NAME, sessionToken, {
           ...cookieOptions,
           maxAge: MEMBER_SESSION_MAX_AGE_MS,
+        });
+
+        void logAuditEvent({
+          userId: user.id,
+          actorEmail: user.email,
+          action: "auth.login",
+          category: "security",
+          entityType: "user",
+          entityId: user.id,
+          metadata: { portal: input.portal, membershipId: user.membershipId },
+          ipAddress: ctx.req.socket?.remoteAddress,
+          correlationId: generateCorrelationId(),
         });
 
         return { success: true, user: toPublicUser(user) };
@@ -265,6 +316,17 @@ export const appRouter = router({
           maxAge: MEMBER_SESSION_MAX_AGE_MS,
         });
 
+        void logAuditEvent({
+          userId: user.id,
+          actorEmail: user.email,
+          action: "auth.password_setup",
+          category: "security",
+          entityType: "user",
+          entityId: user.id,
+          ipAddress: ctx.req.socket?.remoteAddress,
+          correlationId: generateCorrelationId(),
+        });
+
         return { success: true, user: toPublicUser(updated) };
       }),
 
@@ -293,6 +355,16 @@ export const appRouter = router({
       // this browser's copy of it.
       if (ctx.user) {
         memberAccounts.revokeAllSessions(ctx.user.id);
+        void logAuditEvent({
+          userId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          action: "auth.logout",
+          category: "security",
+          entityType: "user",
+          entityId: ctx.user.id,
+          ipAddress: ctx.req.socket?.remoteAddress,
+          correlationId: generateCorrelationId(),
+        });
       }
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -480,6 +552,12 @@ export const appRouter = router({
             message: "Could not update your profile. Please try again.",
           });
         }
+        void logAuditForUser(ctx.user, "member.profile_updated", {
+          category: "membership",
+          entityType: "user",
+          entityId: ctx.user.id,
+          after: input as Record<string, unknown>,
+        });
         return { success: true, user: toPublicUser(updated) };
       }),
 
@@ -540,6 +618,11 @@ export const appRouter = router({
                 "Signature must be a PNG image (data URL, max 400KB).",
             });
           }
+          void logAuditForUser(ctx.user, "card.signature_submitted", {
+            category: "card",
+            entityType: "member_card",
+            entityId: ctx.user.id,
+          });
           return { success: true, card };
         }),
 
@@ -694,6 +777,12 @@ export const appRouter = router({
               : "Could not record your vote. Please try again.",
           });
         }
+        void logAuditForUser(ctx.user, "voting.vote_cast", {
+          category: "governance",
+          entityType: "voting_session",
+          entityId: input.sessionId,
+          after: { voteOption: input.voteOption },
+        });
         return { success: true };
       }),
 
@@ -1152,6 +1241,12 @@ export const appRouter = router({
               message: "Application not found or already processed.",
             });
           }
+          void logAuditForUser(actor, "membership.application_approved", {
+            category: "membership",
+            entityType: "membership_application",
+            entityId: input.applicationId,
+            after: { membershipId: input.membershipId, notes: input.notes },
+          });
           return { success: true, user: result };
         }),
 
@@ -1179,6 +1274,12 @@ export const appRouter = router({
               message: "Application not found or already processed.",
             });
           }
+          void logAuditForUser(actor, "membership.application_rejected", {
+            category: "membership",
+            entityType: "membership_application",
+            entityId: input.applicationId,
+            after: { notes: input.notes },
+          });
           return { success: true };
         }),
     }),
@@ -1216,7 +1317,7 @@ export const appRouter = router({
             kind: z.enum(["signature", "reissue"]).default("signature"),
           })
         )
-        .mutation(async ({ input }) => {
+        .mutation(async ({ ctx, input }) => {
           const card = await memberAccounts.reviewCardSignature(
             input.userId,
             input.decision,
@@ -1226,6 +1327,14 @@ export const appRouter = router({
             throw new TRPCError({
               code: "BAD_REQUEST",
               message: "No pending signature for that member.",
+            });
+          }
+          if (ctx.user) {
+            void logAuditForUser(ctx.user, `card.${input.kind}_${input.decision}`, {
+              category: "card",
+              entityType: "member_card",
+              entityId: input.userId,
+              after: { decision: input.decision, kind: input.kind },
             });
           }
           return { success: true, card };
@@ -1412,20 +1521,573 @@ export const appRouter = router({
       };
     }),
 
-    getConfiguration: officialModuleProcedure("config").query(async () => {
-      return await db.getAllConfiguration();
-    }),
+    // ── Configuration Management ──────────────────────────────────────
+    getConfiguration: officialModuleProcedure("config")
+      .input(z.object({ category: z.string().optional() }).optional())
+      .query(async ({ input }) => {
+        return getAllConfigs(input?.category);
+      }),
 
     updateConfiguration: officialModuleProcedure("config")
       .input(
         z.object({
-          key: z.string(),
+          key: z.string().min(1).max(200),
           value: z.string(),
+          category: z.string().max(50).optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await setConfig(input.key, input.value, input.category);
+        await logAuditForUser(
+          ctx.user!,
+          "config.updated",
+          {
+            category: "admin",
+            entityType: "configuration",
+            after: { key: input.key, value: input.value },
+          }
+        );
         return { success: true };
       }),
+
+    bulkUpdateConfiguration: officialModuleProcedure("config")
+      .input(
+        z.object({
+          entries: z.array(
+            z.object({
+              key: z.string().min(1).max(200),
+              value: z.string(),
+              category: z.string().max(50).optional(),
+            })
+          ).min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await setConfigs(input.entries);
+        await logAuditForUser(
+          ctx.user!,
+          "config.bulk_updated",
+          {
+            category: "admin",
+            entityType: "configuration",
+            after: { keys: input.entries.map((e) => e.key) },
+          }
+        );
+        return { success: true };
+      }),
+
+    deleteConfiguration: officialModuleProcedure("config")
+      .input(z.object({ key: z.string().min(1).max(200) }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteConfig(input.key);
+        await logAuditForUser(
+          ctx.user!,
+          "config.deleted",
+          {
+            category: "admin",
+            entityType: "configuration",
+            before: { key: input.key },
+          }
+        );
+        return { success: true };
+      }),
+
+    getConfigDefinitions: officialModuleProcedure("config").query(() => {
+      return CONFIG_DEFINITIONS;
+    }),
+
+    // ── Branding ──────────────────────────────────────────────────────
+    getBranding: officialModuleProcedure("config").query(async () => {
+      return getBranding();
+    }),
+
+    updateBranding: officialModuleProcedure("config")
+      .input(
+        z.object({
+          orgName: z.string().max(255).optional(),
+          orgFullName: z.string().max(500).optional(),
+          orgShortName: z.string().max(50).optional(),
+          orgEmail: z.string().email().optional(),
+          orgWebsite: z.string().url().max(500).optional(),
+          presidentName: z.string().max(150).optional(),
+          presidentTitle: z.string().max(100).optional(),
+          primaryColor: z.string().max(20).optional(),
+          secondaryColor: z.string().max(20).optional(),
+          accentColor: z.string().max(20).optional(),
+          logoUrl: z.string().max(2000).optional(),
+          faviconUrl: z.string().max(2000).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const entries: Array<{ key: string; value: string; category: string }> = [];
+        if (input.orgName !== undefined) entries.push({ key: "brand.name", value: input.orgName, category: "branding" });
+        if (input.orgFullName !== undefined) entries.push({ key: "brand.fullName", value: input.orgFullName, category: "branding" });
+        if (input.orgShortName !== undefined) entries.push({ key: "brand.shortName", value: input.orgShortName, category: "branding" });
+        if (input.orgEmail !== undefined) entries.push({ key: "brand.email", value: input.orgEmail, category: "branding" });
+        if (input.orgWebsite !== undefined) entries.push({ key: "brand.website", value: input.orgWebsite, category: "branding" });
+        if (input.presidentName !== undefined) entries.push({ key: "brand.presidentName", value: input.presidentName, category: "branding" });
+        if (input.presidentTitle !== undefined) entries.push({ key: "brand.presidentTitle", value: input.presidentTitle, category: "branding" });
+        if (input.primaryColor !== undefined) entries.push({ key: "brand.color.primary", value: input.primaryColor, category: "branding" });
+        if (input.secondaryColor !== undefined) entries.push({ key: "brand.color.secondary", value: input.secondaryColor, category: "branding" });
+        if (input.accentColor !== undefined) entries.push({ key: "brand.color.accent", value: input.accentColor, category: "branding" });
+        if (input.logoUrl !== undefined) entries.push({ key: "brand.logoUrl", value: input.logoUrl, category: "branding" });
+        if (input.faviconUrl !== undefined) entries.push({ key: "brand.faviconUrl", value: input.faviconUrl, category: "branding" });
+        if (entries.length > 0) {
+          await setConfigs(entries);
+        }
+        await logAuditForUser(
+          ctx.user!,
+          "branding.updated",
+          {
+            category: "admin",
+            entityType: "branding",
+            after: input as Record<string, unknown>,
+          }
+        );
+        return { success: true, branding: await getBranding() };
+      }),
+
+    getEmailBranding: officialModuleProcedure("config").query(async () => {
+      return getEmailBranding();
+    }),
+
+    updateEmailBranding: officialModuleProcedure("config")
+      .input(
+        z.object({
+          senderName: z.string().max(255).optional(),
+          senderEmail: z.string().email().optional(),
+          supportEmail: z.string().email().optional(),
+          headerBgColor: z.string().max(20).optional(),
+          footerText: z.string().max(1000).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const entries: Array<{ key: string; value: string; category: string }> = [];
+        if (input.senderName !== undefined) entries.push({ key: "email.senderName", value: input.senderName, category: "email" });
+        if (input.senderEmail !== undefined) entries.push({ key: "email.senderEmail", value: input.senderEmail, category: "email" });
+        if (input.supportEmail !== undefined) entries.push({ key: "email.supportEmail", value: input.supportEmail, category: "email" });
+        if (input.headerBgColor !== undefined) entries.push({ key: "email.headerBgColor", value: input.headerBgColor, category: "email" });
+        if (input.footerText !== undefined) entries.push({ key: "email.footerText", value: input.footerText, category: "email" });
+        if (entries.length > 0) {
+          await setConfigs(entries);
+        }
+        await logAuditForUser(
+          ctx.user!,
+          "email_branding.updated",
+          {
+            category: "admin",
+            entityType: "email_branding",
+            after: input as Record<string, unknown>,
+          }
+        );
+        return { success: true, emailBranding: await getEmailBranding() };
+      }),
+  }),
+
+  // ============ ENTERPRISE ADMIN ROUTES ============
+  enterprise: router({
+    // ── Feature Flags ────────────────────────────────────────────────
+    featureFlags: router({
+      list: superAdminProcedure.query(async () => {
+        return getAllFeatureFlags();
+      }),
+
+      get: superAdminProcedure
+        .input(z.object({ key: z.string().min(1).max(100) }))
+        .query(async ({ input }) => {
+          const flags = await getAllFeatureFlags();
+          return flags.find((f) => f.key === input.key) ?? null;
+        }),
+
+      create: superAdminProcedure
+        .input(
+          z.object({
+            key: z.string().min(1).max(100),
+            name: z.string().min(1).max(255),
+            description: z.string().max(1000).optional(),
+            enabled: z.boolean().default(false),
+            environment: z.string().max(50).optional(),
+            organizationId: z.number().int().optional(),
+            allowedRoles: z.array(z.string().max(50)).optional(),
+            percentage: z.number().int().min(0).max(100).default(100),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const ok = await createFeatureFlag({
+            ...input,
+            createdBy: ctx.user!.id,
+          });
+          if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create feature flag." });
+          await logAuditForUser(ctx.user!, "feature_flag.created", {
+            category: "admin",
+            entityType: "feature_flag",
+            after: { key: input.key, name: input.name, enabled: input.enabled },
+          });
+          return { success: true };
+        }),
+
+      update: superAdminProcedure
+        .input(
+          z.object({
+            key: z.string().min(1).max(100),
+            name: z.string().min(1).max(255).optional(),
+            description: z.string().max(1000).optional(),
+            environment: z.string().max(50).optional(),
+            allowedRoles: z.array(z.string().max(50)).optional(),
+            percentage: z.number().int().min(0).max(100).optional(),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const { key, ...updates } = input;
+          const ok = await updateFeatureFlag(key, updates);
+          if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Feature flag not found." });
+          await logAuditForUser(ctx.user!, "feature_flag.updated", {
+            category: "admin",
+            entityType: "feature_flag",
+            after: { key, ...updates },
+          });
+          return { success: true };
+        }),
+
+      toggle: superAdminProcedure
+        .input(z.object({ key: z.string().min(1).max(100), enabled: z.boolean() }))
+        .mutation(async ({ ctx, input }) => {
+          const ok = await toggleFeatureFlag(input.key, input.enabled);
+          if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Feature flag not found." });
+          await logAuditForUser(ctx.user!, input.enabled ? "feature_flag.enabled" : "feature_flag.disabled", {
+            category: "admin",
+            entityType: "feature_flag",
+            after: { key: input.key, enabled: input.enabled },
+          });
+          return { success: true };
+        }),
+
+      delete: superAdminProcedure
+        .input(z.object({ key: z.string().min(1).max(100) }))
+        .mutation(async ({ ctx, input }) => {
+          const ok = await deleteFeatureFlag(input.key);
+          if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Feature flag not found." });
+          await logAuditForUser(ctx.user!, "feature_flag.deleted", {
+            category: "admin",
+            entityType: "feature_flag",
+            before: { key: input.key },
+          });
+          return { success: true };
+        }),
+    }),
+
+    // ── Audit Log ────────────────────────────────────────────────────
+    audit: router({
+      list: superAdminProcedure
+        .input(
+          z.object({
+            userId: z.number().int().optional(),
+            action: z.string().max(100).optional(),
+            entityType: z.string().max(50).optional(),
+            entityId: z.number().int().optional(),
+            category: z.string().max(50).optional(),
+            correlationId: z.string().max(64).optional(),
+            startDate: z.string().optional(),
+            endDate: z.string().optional(),
+            search: z.string().max(200).optional(),
+            limit: z.number().int().min(1).max(500).default(50),
+            offset: z.number().int().min(0).default(0),
+          })
+        )
+        .query(async ({ input }) => {
+          const filters: Record<string, unknown> = {};
+          if (input.userId !== undefined) filters.userId = input.userId;
+          if (input.action) filters.action = input.action;
+          if (input.entityType) filters.entityType = input.entityType;
+          if (input.entityId !== undefined) filters.entityId = input.entityId;
+          if (input.category) filters.category = input.category;
+          if (input.correlationId) filters.correlationId = input.correlationId;
+          if (input.startDate) filters.startDate = new Date(input.startDate);
+          if (input.endDate) filters.endDate = new Date(input.endDate);
+          if (input.search) filters.search = input.search;
+          filters.limit = input.limit;
+          filters.offset = input.offset;
+          return getAuditEvents(filters as any);
+        }),
+
+      stats: superAdminProcedure.query(async () => {
+        return getAuditStats();
+      }),
+
+      entityHistory: superAdminProcedure
+        .input(
+          z.object({
+            entityType: z.string().min(1).max(50),
+            entityId: z.number().int().positive(),
+            limit: z.number().int().min(1).max(100).default(50),
+          })
+        )
+        .query(async ({ input }) => {
+          return getEntityAuditHistory(input.entityType, input.entityId, input.limit);
+        }),
+
+      correlation: superAdminProcedure
+        .input(z.object({ correlationId: z.string().min(1).max(64) }))
+        .query(async ({ input }) => {
+          return getAuditEvents({ correlationId: input.correlationId, limit: 100 });
+        }),
+    }),
+
+    // ── RBAC Management ──────────────────────────────────────────────
+    rbac: router({
+      /** Get all permissions for a user. */
+      userPermissions: superAdminProcedure
+        .input(z.object({ userId: z.number().int().positive() }))
+        .query(async ({ input }) => {
+          const perms = await getUserPermissions(input.userId);
+          return Array.from(perms);
+        }),
+
+      /** Get all roles for a user. */
+      userRoles: superAdminProcedure
+        .input(z.object({ userId: z.number().int().positive() }))
+        .query(async ({ input }) => {
+          return getUserRoles(input.userId);
+        }),
+
+      /** Assign a role to a user. */
+      assignRole: superAdminProcedure
+        .input(
+          z.object({
+            userId: z.number().int().positive(),
+            roleName: z.string().min(1).max(100),
+            scopeType: z.string().max(50).optional(),
+            scopeId: z.number().int().optional(),
+            expiresAt: z.string().optional(),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const ok = await assignRole(input.userId, input.roleName, {
+            scopeType: input.scopeType,
+            scopeId: input.scopeId,
+            assignedBy: ctx.user!.id,
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+          });
+          if (!ok) throw new TRPCError({ code: "BAD_REQUEST", message: `Failed to assign role "${input.roleName}".` });
+          await logAuditForUser(ctx.user!, "rbac.role_assigned", {
+            category: "admin",
+            entityType: "user_role",
+            entityId: input.userId,
+            after: { roleName: input.roleName, scopeType: input.scopeType, scopeId: input.scopeId },
+          });
+          return { success: true };
+        }),
+
+      /** Remove a role from a user. */
+      removeRole: superAdminProcedure
+        .input(
+          z.object({
+            userId: z.number().int().positive(),
+            roleName: z.string().min(1).max(100),
+            scopeType: z.string().max(50).optional(),
+            scopeId: z.number().int().optional(),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const ok = await removeRole(input.userId, input.roleName, input.scopeType, input.scopeId);
+          if (!ok) throw new TRPCError({ code: "BAD_REQUEST", message: `Failed to remove role "${input.roleName}".` });
+          await logAuditForUser(ctx.user!, "rbac.role_removed", {
+            category: "admin",
+            entityType: "user_role",
+            entityId: input.userId,
+            before: { roleName: input.roleName, scopeType: input.scopeType, scopeId: input.scopeId },
+          });
+          return { success: true };
+        }),
+
+      /** Check if a user has a specific permission. */
+      checkPermission: superAdminProcedure
+        .input(
+          z.object({
+            userId: z.number().int().positive(),
+            permissionKey: z.string().min(1).max(100),
+            scopeType: z.string().max(50).optional(),
+            scopeId: z.number().int().optional(),
+          })
+        )
+        .query(async ({ input }) => {
+          const has = await checkPermission(input.userId, input.permissionKey, input.scopeType, input.scopeId);
+          return { has };
+        }),
+    }),
+
+    // ── Governance Configuration Studio ──────────────────────────────
+    governanceConfig: router({
+      /** Get all governance configuration entries, optionally by domain. */
+      list: officialModuleProcedure("config")
+        .input(z.object({ domain: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          const { getGovernanceConfig } = await import("./config/organizationConfigStudio");
+          return getGovernanceConfig(input?.domain as any);
+        }),
+
+      /** Get configuration grouped by domain. */
+      listGrouped: officialModuleProcedure("config").query(async () => {
+        const { getGovernanceConfigGrouped } = await import("./config/organizationConfigStudio");
+        return getGovernanceConfigGrouped();
+      }),
+
+      /** Get available domains with counts. */
+      domains: officialModuleProcedure("config").query(async () => {
+        const { getConfigDomains } = await import("./config/organizationConfigStudio");
+        return getConfigDomains();
+      }),
+
+      /** Update a single configuration value. */
+      update: officialModuleProcedure("config")
+        .input(
+          z.object({
+            key: z.string().min(1).max(200),
+            value: z.string(),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const { updateGovernanceConfig } = await import("./config/organizationConfigStudio");
+          const result = await updateGovernanceConfig(input);
+          if (!result) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid configuration key or value." });
+          }
+          await logAuditForUser(
+            ctx.user!,
+            "governance_config.updated",
+            {
+              category: "admin",
+              entityType: "governance_config",
+              after: { key: input.key, value: input.value },
+            }
+          );
+          return { success: true, entry: result };
+        }),
+
+      /** Bulk update configuration values. */
+      bulkUpdate: officialModuleProcedure("config")
+        .input(
+          z.object({
+            entries: z.array(
+              z.object({
+                key: z.string().min(1).max(200),
+                value: z.string(),
+              })
+            ).min(1),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const { bulkUpdateGovernanceConfig } = await import("./config/organizationConfigStudio");
+          const result = await bulkUpdateGovernanceConfig(input.entries);
+          await logAuditForUser(
+            ctx.user!,
+            "governance_config.bulk_updated",
+            {
+              category: "admin",
+              entityType: "governance_config",
+              after: { updated: result.updated, failed: result.failed },
+            }
+          );
+          return result;
+        }),
+
+      /** Reset a single value to default. */
+      reset: officialModuleProcedure("config")
+        .input(z.object({ key: z.string().min(1).max(200) }))
+        .mutation(async ({ ctx, input }) => {
+          const { resetGovernanceConfig } = await import("./config/organizationConfigStudio");
+          const result = await resetGovernanceConfig(input.key);
+          if (!result) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Configuration key not found." });
+          }
+          await logAuditForUser(
+            ctx.user!,
+            "governance_config.reset",
+            {
+              category: "admin",
+              entityType: "governance_config",
+              after: { key: input.key, value: result.defaultValue },
+            }
+          );
+          return { success: true, entry: result };
+        }),
+
+      /** Reset all values in a domain to defaults. */
+      resetDomain: officialModuleProcedure("config")
+        .input(z.object({ domain: z.string().min(1).max(100) }))
+        .mutation(async ({ ctx, input }) => {
+          const { resetDomainConfig } = await import("./config/organizationConfigStudio");
+          const result = await resetDomainConfig(input.domain);
+          await logAuditForUser(
+            ctx.user!,
+            "governance_config.domain_reset",
+            {
+              category: "admin",
+              entityType: "governance_config",
+              after: { domain: input.domain, reset: result.reset },
+            }
+          );
+          return result;
+        }),
+
+      /** Simulate a governance query. */
+      simulate: officialModuleProcedure("config")
+        .input(
+          z.object({
+            question: z.string().min(1).max(500),
+            overrides: z.record(z.string(), z.string()).optional(),
+          })
+        )
+        .query(async ({ input }) => {
+          const { simulateGovernanceQuery } = await import("./config/organizationConfigStudio");
+          return simulateGovernanceQuery(
+            { question: input.question },
+            input.overrides
+          );
+        }),
+    }),
+
+    // ── Governance Dashboard ──────────────────────────────────────────
+    governanceDashboard: router({
+      /** Get aggregated governance dashboard data. */
+      get: officialModuleProcedure("config").query(async () => {
+        const { governanceDashboard } = await import("./config/governanceDashboard");
+        return governanceDashboard.getDashboardData();
+      }),
+
+      /** Get NGA status overview. */
+      ngaStatus: officialModuleProcedure("config").query(async () => {
+        const { governanceDashboard } = await import("./config/governanceDashboard");
+        return governanceDashboard.getNGAStatus();
+      }),
+
+      /** Get upcoming deadlines. */
+      deadlines: officialModuleProcedure("config").query(async () => {
+        const { governanceDashboard } = await import("./config/governanceDashboard");
+        return governanceDashboard.getUpcomingDeadlines();
+      }),
+    }),
+
+    // ── System Info ──────────────────────────────────────────────────
+    seedDefaults: superAdminProcedure.mutation(async ({ ctx }) => {
+      await seedDefaultConfigs();
+      await seedRbacDefaults();
+      await seedDefaultFeatureFlags();
+      await logAuditForUser(ctx.user!, "system.seeded_defaults", {
+        category: "admin",
+        entityType: "system",
+      });
+      return { success: true, message: "Default configurations, RBAC, and feature flags seeded." };
+    }),
+
+    invalidateCaches: superAdminProcedure.mutation(async ({ ctx }) => {
+      invalidateAllConfigCache();
+      await logAuditForUser(ctx.user!, "system.cache_invalidated", {
+        category: "admin",
+        entityType: "system",
+      });
+      return { success: true };
+    }),
   }),
 
   // ============ PUBLIC CONFIG (for branding theme) ============
@@ -1444,6 +2106,51 @@ export const appRouter = router({
         }
         return configs;
       }),
+  }),
+
+  // ============ PUBLIC GOVERNANCE TRANSPARENCY ============
+  governance: router({
+    /** Public governance overview (no auth required). */
+    overview: publicProcedure.query(async () => {
+      const { publicGovernance } = await import("./config/publicGovernance");
+      return publicGovernance.getOverview();
+    }),
+
+    /** Public bylaw sections. */
+    sections: publicProcedure
+      .input(z.object({ level: z.enum(["constitution", "bylaws", "annex"]).optional() }).optional())
+      .query(async ({ input }) => {
+        const { publicGovernance } = await import("./config/publicGovernance");
+        return publicGovernance.getSections(input?.level);
+      }),
+
+    /** Get a specific bylaw section. */
+    section: publicProcedure
+      .input(z.object({ sectionId: z.string().min(1).max(50) }))
+      .query(async ({ input }) => {
+        const { publicGovernance } = await import("./config/publicGovernance");
+        return publicGovernance.getSection(input.sectionId);
+      }),
+
+    /** Search bylaw sections. */
+    search: publicProcedure
+      .input(z.object({ query: z.string().min(1).max(200) }))
+      .query(async ({ input }) => {
+        const { publicGovernance } = await import("./config/publicGovernance");
+        return publicGovernance.searchSections(input.query);
+      }),
+
+    /** Published governance documents. */
+    documents: publicProcedure.query(async () => {
+      const { publicGovernance } = await import("./config/publicGovernance");
+      return publicGovernance.getDocuments();
+    }),
+
+    /** Official positions. */
+    positions: publicProcedure.query(async () => {
+      const { publicGovernance } = await import("./config/publicGovernance");
+      return publicGovernance.getPositions();
+    }),
   }),
 });
 

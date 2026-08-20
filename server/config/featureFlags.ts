@@ -15,6 +15,9 @@
 import { eq, and, gte, lte } from "drizzle-orm";
 import { featureFlags } from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("FeatureFlags");
 
 // ============================================================================
 // Cache
@@ -91,7 +94,7 @@ async function getAllFlagsForContext(
       result.set(flag.key, evaluateFlag(flag, context));
     }
   } catch (error) {
-    console.warn("[FeatureFlags] Failed to load flags:", error);
+    log.warn({ err: error }, "Failed to load flags");
   }
 
   return result;
@@ -178,7 +181,7 @@ export async function getAllFeatureFlags(): Promise<
       updatedAt: r.updatedAt,
     }));
   } catch (error) {
-    console.warn("[FeatureFlags] Failed to list flags:", error);
+    log.warn({ err: error }, "Failed to list flags");
     return [];
   }
 }
@@ -202,7 +205,7 @@ export async function toggleFeatureFlag(
     invalidateCache();
     return true;
   } catch (error) {
-    console.error("[FeatureFlags] Failed to toggle flag:", error);
+    log.error({ err: error }, "Failed to toggle flag");
     return false;
   }
 }
@@ -240,7 +243,7 @@ export async function createFeatureFlag(input: {
     invalidateCache();
     return true;
   } catch (error) {
-    console.error("[FeatureFlags] Failed to create flag:", error);
+    log.error({ err: error }, "Failed to create flag");
     return false;
   }
 }
@@ -272,7 +275,7 @@ export async function updateFeatureFlag(
     invalidateCache();
     return true;
   } catch (error) {
-    console.error("[FeatureFlags] Failed to update flag:", error);
+    log.error({ err: error }, "Failed to update flag");
     return false;
   }
 }
@@ -289,7 +292,7 @@ export async function deleteFeatureFlag(key: string): Promise<boolean> {
     invalidateCache();
     return true;
   } catch (error) {
-    console.error("[FeatureFlags] Failed to delete flag:", error);
+    log.error({ err: error }, "Failed to delete flag");
     return false;
   }
 }
@@ -428,9 +431,9 @@ export async function seedDefaultFeatureFlags(): Promise<void> {
       }
     }
     if (seeded > 0) {
-      console.log(`[FeatureFlags] Seeded ${seeded} default feature flag(s).`);
+      log.info({ count: seeded }, "Seeded default feature flags");
     }
   } catch (error) {
-    console.warn("[FeatureFlags] Failed to seed default flags:", error);
+    log.warn({ err: error }, "Failed to seed default flags");
   }
 }

@@ -16,6 +16,9 @@
 import { eq } from "drizzle-orm";
 import { configuration } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("ConfigService");
 
 // ============================================================================
 // Cache
@@ -82,7 +85,7 @@ export async function getConfig(
         return rows[0].value;
       }
     } catch (error) {
-      console.warn(`[ConfigService] Failed to read key "${key}" from DB:`, error);
+      log.warn({ err: error, key }, "Failed to read key from DB");
     }
   }
 
@@ -145,7 +148,7 @@ export async function setConfig(
 ): Promise<void> {
   const db = getDb();
   if (!db) {
-    console.warn(`[ConfigService] Cannot set key "${key}" — no database configured.`);
+    log.warn({ key }, "Cannot set key — no database configured");
     return;
   }
 
@@ -167,7 +170,7 @@ export async function setConfig(
 
     cacheInvalidate(key);
   } catch (error) {
-    console.error(`[ConfigService] Failed to set key "${key}":`, error);
+    log.error({ err: error, key }, "Failed to set key");
   }
 }
 
@@ -185,7 +188,7 @@ export async function setConfigs(
       await setConfig(entry.key, entry.value, entry.category);
     }
   } catch (error) {
-    console.error("[ConfigService] Failed to batch set configs:", error);
+    log.error({ err: error }, "Failed to batch set configs");
   }
 }
 
@@ -200,7 +203,7 @@ export async function deleteConfig(key: string): Promise<void> {
     await db.delete(configuration).where(eq(configuration.key, key));
     cacheInvalidate(key);
   } catch (error) {
-    console.error(`[ConfigService] Failed to delete key "${key}":`, error);
+    log.error({ err: error, key }, "Failed to delete key");
   }
 }
 
@@ -229,7 +232,7 @@ export async function getAllConfigs(
       category: r.category,
     }));
   } catch (error) {
-    console.warn("[ConfigService] Failed to get all configs:", error);
+    log.warn({ err: error }, "Failed to get all configs");
     return [];
   }
 }
@@ -453,9 +456,9 @@ export async function seedDefaultConfigs(): Promise<void> {
       }
     }
     if (seeded > 0) {
-      console.log(`[ConfigService] Seeded ${seeded} default configuration(s).`);
+      log.info({ count: seeded }, "Seeded default configurations");
     }
   } catch (error) {
-    console.warn("[ConfigService] Failed to seed default configs:", error);
+    log.warn({ err: error }, "Failed to seed default configs");
   }
 }

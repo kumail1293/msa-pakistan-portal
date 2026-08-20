@@ -7,6 +7,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import type { MemberCardData } from "./memberAccountService";
 import { getBranding, getOrgName, getOrgFullName, getOrgShortName, getPresidentName, getSerialPrefix } from "../config/branding";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("CardPdf");
 
 /**
  * Directory of this module, independent of the process working directory.
@@ -277,10 +280,7 @@ function portalBaseUrl(): string {
   const base = process.env.PORTAL_BASE_URL;
   if (!base && !warnedMissingPortalBaseUrl) {
     warnedMissingPortalBaseUrl = true;
-    console.warn(
-      "[CardPdf] PORTAL_BASE_URL is not set — verification QRs will point at " +
-        "localhost and fail to verify when printed. Set PORTAL_BASE_URL in .env."
-    );
+    log.warn("PORTAL_BASE_URL not set — verification QRs will point at localhost");
   }
   return base || `http://localhost:${process.env.PORT || 3000}`;
 }

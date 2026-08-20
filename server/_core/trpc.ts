@@ -141,3 +141,40 @@ export function officialModuleProcedure(module: string) {
     }),
   );
 }
+
+/**
+ * Feature-flag gated procedure. Rejects with 403 when the named flag is
+ * disabled. Super admins always pass regardless of flag state so they can
+ * manage the platform even when modules are off.
+ *
+ * Usage:
+ *   featureFlaggedProcedure("elections.engine").query(...)
+ */
+export function featureFlaggedProcedure(flagKey: string) {
+  return protectedProcedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+
+      // Super admins always bypass feature flags
+      if (ctx.user?.role === "superadmin") {
+        return next({ ctx });
+      }
+
+      const { isFeatureEnabled } = await import("../config/featureFlags");
+      const enabled = await isFeatureEnabled(flagKey, {
+        userId: ctx.user?.id,
+        role: ctx.user?.role ?? undefined,
+        environment: process.env.NODE_ENV,
+      });
+
+      if (!enabled) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `This feature is not currently enabled. (flag: ${flagKey})`,
+        });
+      }
+
+      return next({ ctx });
+    }),
+  );
+}

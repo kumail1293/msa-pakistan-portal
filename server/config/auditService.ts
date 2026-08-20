@@ -24,6 +24,9 @@
 import { eq, and, desc, like, sql } from "drizzle-orm";
 import { auditEvents } from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("Audit");
 
 // ============================================================================
 // Logging
@@ -77,10 +80,10 @@ export async function logAuditEvent(input: AuditEventInput): Promise<number | nu
     });
 
     const id = Number(result[0].insertId);
-    console.log(`[Audit] #${id} ${input.action} (${input.entityType ?? "system"}#${input.entityId ?? "-"}) by ${input.actorEmail ?? "system"}`);
+    log.info({ id, action: input.action, entityType: input.entityType ?? "system", entityId: input.entityId ?? "-", actorEmail: input.actorEmail ?? "system" }, "Audit event logged");
     return id;
   } catch (error) {
-    console.error("[Audit] Failed to log event:", error);
+    log.error({ err: error }, "Failed to log audit event");
     return null;
   }
 }
@@ -89,14 +92,14 @@ export async function logAuditEvent(input: AuditEventInput): Promise<number | nu
  * Convenience function for logging with a user object.
  */
 export async function logAuditForUser(
-  user: { id?: number; email?: string; name?: string },
+  user: { id?: number | null; email?: string | null; name?: string | null },
   action: string,
   details: Omit<AuditEventInput, "userId" | "actorEmail" | "actorName" | "action">
 ): Promise<number | null> {
   return logAuditEvent({
-    userId: user.id,
-    actorEmail: user.email,
-    actorName: user.name,
+    userId: user.id ?? undefined,
+    actorEmail: user.email ?? undefined,
+    actorName: user.name ?? undefined,
     action,
     ...details,
   });
@@ -193,7 +196,7 @@ export async function getAuditEvents(
 
     return rows;
   } catch (error) {
-    console.error("[Audit] Failed to query events:", error);
+    log.error({ err: error }, "Failed to query audit events");
     return [];
   }
 }
@@ -271,7 +274,7 @@ export async function getAuditStats(): Promise<{
       recentEvents: recentRows.map((r) => ({ action: r.action, count: r.count })),
     };
   } catch (error) {
-    console.error("[Audit] Failed to get stats:", error);
+    log.error({ err: error }, "Failed to get audit stats");
     return { totalEvents: 0, eventsByCategory: {}, recentEvents: [] };
   }
 }

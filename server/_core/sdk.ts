@@ -7,6 +7,9 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
+import { childLogger } from "./logger";
+
+const log = childLogger("Auth");
 import type {
   ExchangeTokenRequest,
   ExchangeTokenResponse,
@@ -36,11 +39,9 @@ const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserI
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
     if (ENV.oAuthServerUrl) {
-      console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
+      log.info({ baseURL: ENV.oAuthServerUrl }, "OAuth initialized");
     } else {
-      console.warn(
-        "[OAuth] OAUTH_SERVER_URL is not configured. External OAuth login is disabled."
-      );
+      log.warn("OAuth server URL not configured — external login disabled");
     }
   }
 
@@ -96,9 +97,7 @@ class SDKServer {
     this.client = client;
     this.oauthService = new OAuthService(this.client);
     if (!ENV.cookieSecret) {
-      console.warn(
-        "[Auth] JWT_SECRET is not configured. Sessions will use an insecure dev fallback; set a strong secret in production."
-      );
+      log.warn("JWT_SECRET not configured — using insecure dev fallback");
     }
   }
 
@@ -180,9 +179,7 @@ class SDKServer {
     }
     if (!devSecretWarned) {
       devSecretWarned = true;
-      console.warn(
-        "[Auth] JWT_SECRET not set - using an insecure dev fallback for session tokens."
-      );
+      log.warn("JWT_SECRET not set — using insecure dev fallback for session tokens");
     }
     return new TextEncoder().encode("msap-dev-session-secret");
   }
@@ -234,7 +231,7 @@ class SDKServer {
     cookieValue: string | undefined | null
   ): Promise<{ openId: string; appId: string; name: string; ver: number } | null> {
     if (!cookieValue) {
-      console.warn("[Auth] Missing session cookie");
+      log.debug("Missing session cookie");
       return null;
     }
 
@@ -250,7 +247,7 @@ class SDKServer {
         !isNonEmptyString(appId) ||
         !isNonEmptyString(name)
       ) {
-        console.warn("[Auth] Session payload missing required fields");
+        log.warn("Session payload missing required fields");
         return null;
       }
 
@@ -265,7 +262,7 @@ class SDKServer {
         ver: Number.isFinite(verNumber) && verNumber > 0 ? verNumber : 0,
       };
     } catch (error) {
-      console.warn("[Auth] Session verification failed", String(error));
+      log.warn({ err: error }, "Session verification failed");
       return null;
     }
   }
@@ -321,7 +318,7 @@ class SDKServer {
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
+        log.error({ err: error }, "Failed to sync user from OAuth");
         throw ForbiddenError("Failed to sync user info");
       }
     }

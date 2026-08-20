@@ -17,10 +17,12 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   BarChart3,
   Calendar,
+  Flag,
   IdCard,
   LayoutDashboard,
   LogOut,
   Scale,
+  ScrollText,
   ShieldCheck,
   Settings,
   UserCog,
@@ -43,6 +45,30 @@ const NAV_ITEMS = [
     icon: IdCard,
   },
   { module: "config", label: "Config", path: "/admin/config", icon: Settings },
+  {
+    module: "config",
+    label: "Governance",
+    path: "/admin/governance",
+    icon: Scale,
+  },
+  {
+    module: "config",
+    label: "Config Studio",
+    path: "/admin/governance-config",
+    icon: Settings,
+  },
+  {
+    module: "config",
+    label: "Feature Flags",
+    path: "/admin/feature-flags",
+    icon: Flag,
+  },
+  {
+    module: "config",
+    label: "Audit Log",
+    path: "/admin/audit",
+    icon: ScrollText,
+  },
   {
     module: "interviews",
     label: "Interviews",

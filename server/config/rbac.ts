@@ -22,6 +22,9 @@ import {
   userRoles,
 } from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("RBAC");
 
 // ============================================================================
 // Cache
@@ -152,7 +155,7 @@ export async function getUserPermissions(
 
     return permKeys;
   } catch (error) {
-    console.error("[RBAC] Failed to get user permissions:", error);
+    log.error({ err: error }, "Failed to get user permissions");
     return new Set();
   }
 }
@@ -185,7 +188,7 @@ export async function getUserRoles(
 
     return rows;
   } catch (error) {
-    console.error("[RBAC] Failed to get user roles:", error);
+    log.error({ err: error }, "Failed to get user roles");
     return [];
   }
 }
@@ -219,7 +222,7 @@ export async function assignRole(
       .limit(1);
 
     if (!role) {
-      console.warn(`[RBAC] Role "${roleName}" not found.`);
+      log.warn({ roleName }, "Role not found");
       return false;
     }
 
@@ -237,7 +240,7 @@ export async function assignRole(
       .limit(1);
 
     if (existing.length > 0) {
-      console.log(`[RBAC] User ${userId} already has role "${roleName}".`);
+      log.info({ userId, roleName }, "User already has role");
       return true; // Already assigned
     }
 
@@ -252,10 +255,10 @@ export async function assignRole(
     });
 
     invalidatePermCache(userId);
-    console.log(`[RBAC] Assigned role "${roleName}" to user ${userId}.`);
+    log.info({ userId, roleName }, "Assigned role");
     return true;
   } catch (error) {
-    console.error("[RBAC] Failed to assign role:", error);
+    log.error({ err: error }, "Failed to assign role");
     return false;
   }
 }
@@ -299,7 +302,7 @@ export async function removeRole(
     invalidatePermCache(userId);
     return true;
   } catch (error) {
-    console.error("[RBAC] Failed to remove role:", error);
+    log.error({ err: error }, "Failed to remove role");
     return false;
   }
 }
@@ -329,7 +332,7 @@ export async function createPermission(
     });
     return true;
   } catch (error) {
-    console.error("[RBAC] Failed to create permission:", error);
+    log.error({ err: error }, "Failed to create permission");
     return false;
   }
 }
@@ -361,7 +364,7 @@ export async function createRole(
     });
     return true;
   } catch (error) {
-    console.error("[RBAC] Failed to create role:", error);
+    log.error({ err: error }, "Failed to create role");
     return false;
   }
 }
@@ -390,7 +393,7 @@ export async function assignPermissionToRole(
       .limit(1);
 
     if (!role || !perm) {
-      console.warn(`[RBAC] Role "${roleName}" or permission "${permissionKey}" not found.`);
+      log.warn({ roleName, permissionKey }, "Role or permission not found");
       return false;
     }
 
@@ -415,7 +418,7 @@ export async function assignPermissionToRole(
 
     return true;
   } catch (error) {
-    console.error("[RBAC] Failed to assign permission to role:", error);
+    log.error({ err: error }, "Failed to assign permission to role");
     return false;
   }
 }
@@ -651,7 +654,7 @@ export async function seedRbacDefaults(): Promise<void> {
       }
     }
     if (permCount > 0) {
-      console.log(`[RBAC] Seeded ${permCount} permission(s).`);
+      log.info({ count: permCount }, "Seeded permissions");
     }
 
     // Seed roles
@@ -715,9 +718,9 @@ export async function seedRbacDefaults(): Promise<void> {
       }
     }
     if (roleCount > 0) {
-      console.log(`[RBAC] Seeded ${roleCount} role(s) with permissions.`);
+      log.info({ count: roleCount }, "Seeded roles with permissions");
     }
   } catch (error) {
-    console.warn("[RBAC] Failed to seed RBAC defaults:", error);
+    log.warn({ err: error }, "Failed to seed RBAC defaults");
   }
 }

@@ -16,9 +16,14 @@ import { ENV } from "./env";
 import { TRPCError } from "@trpc/server";
 import { sdk } from "./sdk";
 import { checkRateLimit, rateLimitKey } from "./rateLimit";
+import { childLogger } from "./logger";
+import { registerHealthRoutes, markReady } from "./health";
+
+const log = childLogger("Server");
 import { buildMemberCard } from "../services/memberAccountService";
 import { generatePremiumMembershipCardPdf } from "../services/documentService";
 import {
+  initEmailBranding,
   isSmtpConfigured,
   processPendingEmails,
 } from "../services/emailService";
@@ -36,14 +41,14 @@ function startEmailQueueProcessor() {
     try {
       await processPendingEmails();
     } catch (error) {
-      console.error("[Email] Queue processor error:", error);
+      log.error({ err: error }, "Email queue processor error");
     } finally {
       running = false;
     }
   };
   setTimeout(tick, 5_000);
   setInterval(tick, INTERVAL_MS);
-  console.log("[Email] Queue processor started (every 60s).");
+  log.info("Email queue processor started (every 60s)");
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -76,6 +81,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "30mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerHealthRoutes(app);
 
   // Print-ready premium membership card PDF. Streamed straight from the
   // server (no storage dependency) so it works even before Forge storage is
@@ -118,7 +124,7 @@ async function startServer() {
       res.setHeader("Cache-Control", "no-store");
       res.send(pdf);
     } catch (error) {
-      console.error("[CardPdf] generation failed:", error);
+      log.error({ err: error }, "Card PDF generation failed");
       res.status(500).send("Could not generate the membership card PDF.");
     }
   });
@@ -135,10 +141,12 @@ async function startServer() {
           // Expected application errors (auth, validation, rate limit) are
           // already user-safe; log at debug level.
           if (error.code === "INTERNAL_SERVER_ERROR") {
-            console.error(`[trpc] ${type} ${path ?? ""}:`, error);
+            log.error({ err: error, path: path ?? "", type }, "tRPC internal error");
+          } else {
+            log.debug({ err: error, path: path ?? "", type }, "tRPC application error");
           }
         } else {
-          console.error(`[trpc] ${type} ${path ?? ""}:`, error);
+          log.error({ err: error, path: path ?? "", type }, "tRPC unexpected error");
         }
       },
     })
@@ -156,11 +164,17 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    log.info({ preferredPort, port }, "Port busy — using alternative");
   }
 
+  // Pre-load branding defaults so sync getSmtpConfig() uses real values.
+  await initEmailBranding();
+
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    log.info({ port }, "Server listening");
+
+    // Mark server ready for traffic (enables /health/ready and /health).
+    markReady();
 
     // Real SMTP delivery, or the dev memory-outbox flush when SMTP is absent.
     if (isSmtpConfigured() || !ENV.isProduction) {
@@ -168,11 +182,9 @@ async function startServer() {
     } else {
       // Production without a relay: never fail silently - the queue would
       // never drain and members would never receive their setup emails.
-      console.error(
-        "[Email] SMTP is not configured (SMTP_HOST missing). Member emails will NOT be delivered. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD and FROM_EMAIL."
-      );
+      log.error("SMTP not configured — member emails will NOT be delivered");
     }
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(err => log.fatal({ err }, "Server failed to start"));

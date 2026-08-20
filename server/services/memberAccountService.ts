@@ -44,6 +44,9 @@ import {
   queueMembershipStatusEmail,
   queuePasswordSetupEmail,
 } from "./emailService";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("MemberAccount");
 
 // ============================================================================
 // Types
@@ -313,9 +316,7 @@ export function issueSetupToken(
   persistStore();
 
   // Never log the raw token.
-  console.log(
-    `[MemberAccount] Issued password setup token for user ${userId} (expires ${expiresAt.toISOString()}).`
-  );
+  log.info({ userId, expiresAt: expiresAt.toISOString() }, "Issued password setup token");
   return { rawToken, expiresAt };
 }
 
@@ -653,9 +654,7 @@ export function ensureBootstrapSuperAdmin(): void {
   const user = findUserByIdentity(email);
   if (!user || user.role === "superadmin") return;
   upsertUser({ openId: user.openId, role: "superadmin" });
-  console.log(
-    `[Officials] Promoted ${email} to super admin (SUPER_ADMIN_EMAIL bootstrap).`
-  );
+  log.info({ email }, "Promoted to super admin (SUPER_ADMIN_EMAIL bootstrap)");
 }
 
 // ============================================================================
@@ -1567,9 +1566,7 @@ function getCardRecord(userId: number): MemberCardRecord {
 
 function cardSecret(): string {
   if (ENV.cookieSecret) return ENV.cookieSecret;
-  console.warn(
-    "[MemberCard] JWT_SECRET not set - using an insecure dev fallback for card verification tokens."
-  );
+  log.warn("JWT_SECRET not set — using insecure dev fallback for card verification tokens");
   return "msap-dev-card-secret";
 }
 
@@ -2311,12 +2308,10 @@ function flushStoreToFile(): void {
     fs.renameSync(tmp, STORE_FILE);
     persistWarned = false;
   } catch (error) {
-    console.error("[MemberStore] Failed to persist store to file:", error);
+    log.error({ err: error }, "Failed to persist store to file");
     if (!persistWarned) {
       persistWarned = true;
-      console.warn(
-        "[MemberStore] The membership store is NOT being persisted - issued cards will be lost on the next restart. Check MEMBER_STORE_FILE and disk permissions."
-      );
+      log.warn("Membership store is NOT being persisted — issued cards will be lost on restart");
     }
   }
 }
@@ -2327,7 +2322,7 @@ async function flushStoreToDb(): Promise<void> {
     const snapshot = snapshotStoreState();
     await saveStoreToDb(snapshot);
   } catch (error) {
-    console.error("[MemberStoreDb] Failed to persist store to database:", error);
+    log.error({ err: error }, "Failed to persist store to database");
   }
 }
 
@@ -2368,11 +2363,9 @@ export function restoreStoreFromDisk(): void {
     const parsed = JSON.parse(raw) as MemberStoreSnapshot;
     if (parsed.version !== 1) return;
     applyStoreState(parsed);
-    console.log(
-      `[MemberStore] Restored ${parsed.users?.length ?? 0} member(s) and ${parsed.cards?.length ?? 0} card record(s) from ${STORE_FILE}`
-    );
+    log.info({ users: parsed.users?.length ?? 0, cards: parsed.cards?.length ?? 0, file: STORE_FILE }, "Restored store from snapshot");
   } catch (error) {
-    console.error("[MemberStore] Failed to restore snapshot; starting empty:", error);
+    log.error({ err: error }, "Failed to restore snapshot — starting empty");
   }
 }
 
@@ -2388,13 +2381,11 @@ async function restoreStore(): Promise<void> {
     const dbSnapshot = await loadStoreFromDb();
     if (dbSnapshot && dbSnapshot.users.length > 0) {
       applyStoreState(dbSnapshot);
-      console.log(
-        `[MemberStoreDb] Restored ${dbSnapshot.users.length} member(s) and ${dbSnapshot.cards.length} card record(s) from MySQL`
-      );
+      log.info({ users: dbSnapshot.users.length, cards: dbSnapshot.cards.length }, "Restored store from MySQL");
       return;
     }
   } catch (error) {
-    console.warn("[MemberStoreDb] MySQL load failed, trying JSON file:", error);
+    log.warn({ err: error }, "MySQL load failed — trying JSON file");
   }
 
   // Fall back to JSON file

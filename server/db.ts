@@ -50,6 +50,9 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import * as memberAccounts from "./services/memberAccountService";
+import { childLogger } from "./_core/logger";
+
+const log = childLogger("Database");
 
 // ============================================================================
 // Connection pool
@@ -68,9 +71,9 @@ function getPool(): mysql.Pool | null {
   if (!url) return null;
   try {
     _pool = mysql.createPool(url);
-    console.log("[Database] MySQL2 connection pool created.");
+    log.info("MySQL2 connection pool created");
   } catch (error) {
-    console.warn("[Database] Failed to create connection pool:", error);
+    log.warn({ err: error }, "Failed to create connection pool");
     _pool = null;
   }
   return _pool;
@@ -83,9 +86,9 @@ export function getDb() {
   try {
     // Drizzle can connect directly from a URL string
     _db = drizzle(url);
-    console.log("[Database] Drizzle connected.");
+    log.info("Drizzle connected");
   } catch (error) {
-    console.warn("[Database] Failed to create Drizzle instance:", error);
+    log.warn({ err: error }, "Failed to create Drizzle instance");
     _db = null;
   }
   return _db;
@@ -129,7 +132,7 @@ export async function getLocalCouncils() {
   try {
     return await db.select().from(localCouncils);
   } catch (error) {
-    console.warn("[Database] Failed to get local councils:", error);
+    log.warn({ err: error }, "Failed to get local councils");
     return [];
   }
 }
@@ -142,7 +145,7 @@ export async function getLocalCouncilById(id: number) {
     const result = await db.select().from(localCouncils).where(eq(localCouncils.id, id)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.warn("[Database] Failed to get local council:", error);
+    log.warn({ err: error }, "Failed to get local council");
     return undefined;
   }
 }
@@ -156,7 +159,7 @@ export async function getPositions() {
   try {
     return await db.select().from(positions);
   } catch (error) {
-    console.warn("[Database] Failed to get positions:", error);
+    log.warn({ err: error }, "Failed to get positions");
     return [];
   }
 }
@@ -170,7 +173,7 @@ export async function getMemberPositions(userId: number) {
   try {
     return await db.select().from(memberPositions).where(eq(memberPositions.memberId, userId));
   } catch (error) {
-    console.warn("[Database] Failed to get member positions:", error);
+    log.warn({ err: error }, "Failed to get member positions");
     return [];
   }
 }
@@ -184,7 +187,7 @@ export async function getOpportunities() {
   try {
     return await db.select().from(opportunities);
   } catch (error) {
-    console.warn("[Database] Failed to get opportunities:", error);
+    log.warn({ err: error }, "Failed to get opportunities");
     return [];
   }
 }
@@ -197,7 +200,7 @@ export async function getOpportunityById(id: number) {
     const result = await db.select().from(opportunities).where(eq(opportunities.id, id)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.warn("[Database] Failed to get opportunity:", error);
+    log.warn({ err: error }, "Failed to get opportunity");
     return undefined;
   }
 }
@@ -214,7 +217,7 @@ export async function getOpportunityApplications(opportunityId: number) {
       .from(opportunityApplications)
       .where(eq(opportunityApplications.opportunityId, opportunityId));
   } catch (error) {
-    console.warn("[Database] Failed to get opportunity applications:", error);
+    log.warn({ err: error }, "Failed to get opportunity applications");
     return [];
   }
 }
@@ -229,7 +232,7 @@ export async function getUserOpportunityApplications(userId: number) {
       .from(opportunityApplications)
       .where(eq(opportunityApplications.memberId, userId));
   } catch (error) {
-    console.warn("[Database] Failed to get user opportunity applications:", error);
+    log.warn({ err: error }, "Failed to get user opportunity applications");
     return [];
   }
 }
@@ -252,7 +255,7 @@ export async function createOpportunityApplication(
       .values({ opportunityId, memberId, applicationText });
     return { id: Number(result[0].insertId) };
   } catch (error) {
-    console.warn("[Database] Failed to create opportunity application:", error);
+    log.warn({ err: error }, "Failed to create opportunity application");
     return null;
   }
 }
@@ -266,7 +269,7 @@ export async function getVotingSessions() {
   try {
     return await db.select().from(votingSessions);
   } catch (error) {
-    console.warn("[Database] Failed to get voting sessions:", error);
+    log.warn({ err: error }, "Failed to get voting sessions");
     return [];
   }
 }
@@ -279,7 +282,7 @@ export async function getVotingSessionById(id: number) {
     const result = await db.select().from(votingSessions).where(eq(votingSessions.id, id)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.warn("[Database] Failed to get voting session:", error);
+    log.warn({ err: error }, "Failed to get voting session");
     return undefined;
   }
 }
@@ -305,7 +308,7 @@ export async function getVotingSessionResults(sessionId: number): Promise<{
     }
     return { totals, totalVotes: rows.length };
   } catch (error) {
-    console.warn("[Database] Failed to get voting session results:", error);
+    log.warn({ err: error }, "Failed to get voting session results");
     return { totals: {}, totalVotes: 0 };
   }
 }
@@ -340,7 +343,7 @@ export async function castVote(
     });
     return { success: true, duplicate: false };
   } catch (error) {
-    console.warn("[Database] Failed to cast vote:", error);
+    log.warn({ err: error }, "Failed to cast vote");
     return { success: false, duplicate: false };
   }
 }
@@ -357,7 +360,7 @@ export async function getUserVote(sessionId: number, userId: number) {
       .limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.warn("[Database] Failed to get user vote:", error);
+    log.warn({ err: error }, "Failed to get user vote");
     return undefined;
   }
 }
@@ -371,7 +374,7 @@ export async function getUserDocuments(userId: number) {
   try {
     return await db.select().from(documents).where(eq(documents.memberId, userId));
   } catch (error) {
-    console.warn("[Database] Failed to get user documents:", error);
+    log.warn({ err: error }, "Failed to get user documents");
     return [];
   }
 }
@@ -384,7 +387,7 @@ export async function getDocumentById(id: number) {
     const result = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.warn("[Database] Failed to get document:", error);
+    log.warn({ err: error }, "Failed to get document");
     return undefined;
   }
 }
@@ -398,7 +401,7 @@ export async function getUserCVEntries(userId: number) {
   try {
     return await db.select().from(cvEntries).where(eq(cvEntries.memberId, userId));
   } catch (error) {
-    console.warn("[Database] Failed to get user CV entries:", error);
+    log.warn({ err: error }, "Failed to get user CV entries");
     return [];
   }
 }
@@ -413,7 +416,7 @@ export async function getConfiguration(key: string) {
     const result = await db.select().from(configuration).where(eq(configuration.key, key)).limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
-    console.warn("[Database] Failed to get configuration:", error);
+    log.warn({ err: error }, "Failed to get configuration");
     return undefined;
   }
 }
@@ -425,7 +428,7 @@ export async function getAllConfiguration() {
   try {
     return await db.select().from(configuration);
   } catch (error) {
-    console.warn("[Database] Failed to get all configuration:", error);
+    log.warn({ err: error }, "Failed to get all configuration");
     return [];
   }
 }
@@ -442,7 +445,7 @@ export async function getPendingEmails() {
       .from(emailQueue)
       .where(eq(emailQueue.status, "Pending"));
   } catch (error) {
-    console.warn("[Database] Failed to get pending emails:", error);
+    log.warn({ err: error }, "Failed to get pending emails");
     return [];
   }
 }
@@ -469,7 +472,7 @@ export async function logAuditEvent(
       createdAt: new Date(),
     });
   } catch (error) {
-    console.warn("[Database] Failed to log audit event:", error);
+    log.warn({ err: error }, "Failed to log audit event");
   }
 }
 
@@ -480,7 +483,7 @@ export async function getAuditLogs(limit: number = 100) {
   try {
     return await db.select().from(auditLog).limit(limit);
   } catch (error) {
-    console.warn("[Database] Failed to get audit logs:", error);
+    log.warn({ err: error }, "Failed to get audit logs");
     return [];
   }
 }
@@ -527,7 +530,7 @@ export async function listMembershipApplications(params: {
       conn.release();
     }
   } catch (error) {
-    console.warn("[Database] Failed to list membership applications:", error);
+    log.warn({ err: error }, "Failed to list membership applications");
     return [];
   }
 }
@@ -549,7 +552,7 @@ export async function getMembershipApplication(
       .limit(1);
     return rows[0] ?? null;
   } catch (error) {
-    console.warn("[Database] Failed to get membership application:", error);
+    log.warn({ err: error }, "Failed to get membership application");
     return null;
   }
 }
@@ -635,7 +638,7 @@ export async function approveMembershipApplication(
 
     return user;
   } catch (error) {
-    console.error("[Database] Failed to approve membership application:", error);
+    log.error({ err: error }, "Failed to approve membership application");
     throw error;
   }
 }
@@ -672,7 +675,7 @@ export async function rejectMembershipApplication(
 
     return true;
   } catch (error) {
-    console.error("[Database] Failed to reject membership application:", error);
+    log.error({ err: error }, "Failed to reject membership application");
     return false;
   }
 }

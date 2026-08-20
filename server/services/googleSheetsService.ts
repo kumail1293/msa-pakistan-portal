@@ -8,6 +8,10 @@
  * admin approval creates the member account directly.
  */
 
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("MembershipLocal");
+
 export interface MembershipUpload {
   fileName: string;
   mimeType: string;
@@ -310,7 +314,7 @@ async function submitMembershipApplicationLocal(
       conn.release();
     }
   } catch (error) {
-    console.error("[MembershipLocal] Failed to store application:", error);
+    log.error({ err: error }, "Failed to store application");
     throw new Error("Failed to store membership application locally.");
   }
 }
@@ -363,7 +367,7 @@ export async function lookupLocalMembership(
       conn.release();
     }
   } catch (error) {
-    console.warn("[MembershipLocal] Lookup failed:", error);
+    log.warn({ err: error }, "Lookup failed");
     return null;
   }
 }
@@ -412,10 +416,7 @@ export async function lookupMembership(
     );
     return response.data ?? null;
   } catch (error) {
-    console.warn(
-      "[AppsScript] lookupMember unavailable:",
-      (error as Error).message
-    );
+    log.warn({ err: (error as Error).message }, "AppsScript lookupMember unavailable");
     return null;
   }
 }

@@ -3,6 +3,9 @@ import { emailQueue } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import nodemailer, { type Transporter } from "nodemailer";
 import { getBranding, getEmailBranding } from "../config/branding";
+import { childLogger } from "../_core/logger";
+
+const log = childLogger("Email");
 
 /**
  * Email Service for MSAP Member Portal
@@ -34,6 +37,51 @@ const MAX_RETRIES = 3;
 // Logged once per boot so an unconfigured relay doesn't spam every tick.
 let warnedSmtpUnconfigured = false;
 
+// ── Lazy-loaded branding defaults ─────────────────────────────────────────
+// Populated once from the branding provider so that the sync getSmtpConfig()
+// never needs to be async.  Falls back to configService defaults if the DB
+// is unavailable (e.g. during tests).
+let _emailDefaults: {
+  senderName: string;
+  senderEmail: string;
+  supportEmail: string;
+  orgName: string;
+} | null = null;
+
+async function loadEmailDefaults() {
+  if (_emailDefaults) return _emailDefaults;
+  try {
+    const [eb, branding] = await Promise.all([
+      getEmailBranding(),
+      getBranding(),
+    ]);
+    _emailDefaults = {
+      senderName: eb.senderName,
+      senderEmail: eb.senderEmail,
+      supportEmail: eb.supportEmail,
+      orgName: branding.orgName,
+    };
+  } catch {
+    // DB unavailable – use configService hardcoded defaults
+    _emailDefaults = {
+      senderName: "MSA Pakistan",
+      senderEmail: "no-reply@msapakistan.org",
+      supportEmail: "vpm@msapakistan.org",
+      orgName: "MSA Pakistan",
+    };
+  }
+  return _emailDefaults;
+}
+
+/** Reset the cached defaults (exported for tests). */
+export function resetEmailDefaults(): void {
+  _emailDefaults = null;
+}
+
+async function getEmailDefaults() {
+  return loadEmailDefaults();
+}
+
 // ============================================================================
 // SMTP transport (env-configured)
 // ============================================================================
@@ -55,14 +103,15 @@ function sanitizeEmailError(error: unknown): string {
 }
 
 function getSmtpConfig() {
+  const defaults = _emailDefaults;
   return {
     host: process.env.SMTP_HOST?.trim() ?? "",
     port: parseInt(process.env.SMTP_PORT || "587", 10),
     secure: process.env.SMTP_SECURE === "true", // true for port 465 (implicit TLS)
     user: process.env.SMTP_USER?.trim() ?? "",
     pass: process.env.SMTP_PASSWORD ?? "",
-    from: process.env.FROM_EMAIL?.trim() ?? "no-reply@msapakistan.org",
-    fromName: process.env.SMTP_FROM_NAME?.trim() || "MSA Pakistan",
+    from: process.env.FROM_EMAIL?.trim() ?? defaults?.senderEmail ?? "no-reply@msapakistan.org",
+    fromName: process.env.SMTP_FROM_NAME?.trim() || defaults?.senderName || "MSA Pakistan",
   };
 }
 
@@ -79,9 +128,7 @@ async function getTransport(): Promise<Transporter | null> {
   if (!config.host) {
     if (!warnedSmtpUnconfigured) {
       warnedSmtpUnconfigured = true;
-      console.warn(
-        "[Email] SMTP_HOST is not configured. Emails will be logged but not sent."
-      );
+      log.warn("SMTP_HOST not configured — emails will be logged but not sent");
     }
     cachedTransport = null;
     return null;
@@ -96,10 +143,10 @@ async function getTransport(): Promise<Transporter | null> {
         ? { user: config.user, pass: config.pass }
         : undefined,
     });
-    console.log(`[Email] SMTP transport created (${config.host}:${config.port})`);
+    log.info({ host: config.host, port: config.port }, "SMTP transport created");
     return cachedTransport;
   } catch (error) {
-    console.error("[Email] Failed to create SMTP transport:", sanitizeEmailError(error));
+    log.error({ err: sanitizeEmailError(error) }, "Failed to create SMTP transport");
     cachedTransport = null;
     return null;
   }
@@ -118,7 +165,7 @@ export async function queueEmail(
 ): Promise<number | null> {
   const db = getDb();
   if (!db) {
-    console.log(`[Email] (no DB) To: ${options.recipientEmail} | Subject: ${options.subject}`);
+    log.debug({ to: options.recipientEmail, subject: options.subject }, "No DB — email logged to memory");
     memoryEmailLog.push(options);
     return null;
   }
@@ -132,10 +179,10 @@ export async function queueEmail(
       status: "Pending",
     });
     const id = Number(result[0].insertId);
-    console.log(`[Email] Queued #${id}: ${options.subject} → ${options.recipientEmail}`);
+    log.info({ id, subject: options.subject, to: options.recipientEmail }, "Email queued");
     return id;
   } catch (error) {
-    console.error("[Email] Failed to queue email:", sanitizeEmailError(error));
+    log.error({ err: sanitizeEmailError(error) }, "Failed to queue email");
     return null;
   }
 }
@@ -162,7 +209,7 @@ export async function processEmailQueue(): Promise<void> {
       await deliverEmail(email);
     }
   } catch (error) {
-    console.error("[Email] Failed to process queue:", sanitizeEmailError(error));
+    log.error({ err: sanitizeEmailError(error) }, "Failed to process email queue");
   }
 }
 
@@ -182,9 +229,7 @@ async function deliverEmail(
   const db = getDb();
 
   if (!transport) {
-    console.log(
-      `[Email] (no SMTP) To: ${email.recipientEmail} | Subject: ${email.subject}`
-    );
+    log.debug({ to: email.recipientEmail, subject: email.subject }, "No SMTP — email logged (not sent)");
     if (db) {
       await db
         .update(emailQueue)
@@ -201,9 +246,7 @@ async function deliverEmail(
         .set({ status: "Permanent Failure", lastAttemptAt: new Date() })
         .where(eq(emailQueue.id, email.id));
     }
-    console.error(
-      `[Email] Permanent failure after ${maxRetries} attempts: ${email.recipientEmail} | ${email.subject}`
-    );
+    log.error({ maxRetries, to: email.recipientEmail, subject: email.subject }, "Permanent failure after max retries");
     return;
   }
 
@@ -215,9 +258,7 @@ async function deliverEmail(
       subject: email.subject,
       html: email.htmlBody ?? "",
     });
-    console.log(
-      `[Email] Sent to ${email.recipientEmail}: ${email.subject}`
-    );
+    log.info({ to: email.recipientEmail, subject: email.subject }, "Email sent");
     if (db) {
       await db
         .update(emailQueue)
@@ -225,9 +266,9 @@ async function deliverEmail(
         .where(eq(emailQueue.id, email.id));
     }
   } catch (error) {
-    console.error(
-      `[Email] Delivery failed (attempt ${retryCount + 1}/${maxRetries}) to ${email.recipientEmail}: ${email.subject}`,
-      sanitizeEmailError(error)
+    log.error(
+      { err: sanitizeEmailError(error), attempt: retryCount + 1, maxRetries, to: email.recipientEmail, subject: email.subject },
+      "Email delivery failed"
     );
     if (db) {
       await db
@@ -248,13 +289,14 @@ async function deliverEmail(
  */
 export async function sendTestEmail(
   recipientEmail: string,
-  branding?: { orgName?: string; supportEmail?: string }
+  brandingOverrides?: { orgName?: string; supportEmail?: string }
 ): Promise<boolean> {
   if (!isSmtpConfigured()) {
     throw new Error("SMTP is not configured. Set SMTP_HOST and related environment variables.");
   }
-  const orgName = branding?.orgName ?? "MSA Pakistan";
-  const supportEmail = branding?.supportEmail ?? "vpm@msapakistan.org";
+  const defaults = await getEmailDefaults();
+  const orgName = brandingOverrides?.orgName ?? defaults.orgName;
+  const supportEmail = brandingOverrides?.supportEmail ?? defaults.supportEmail;
 
   return queueEmail({
     recipientEmail,
@@ -622,7 +664,9 @@ export async function getMembershipStatusEmailSubjects(): Promise<
   };
 }
 
-// Legacy export for backward compatibility (sync version using env defaults)
+// Legacy export for backward compatibility (sync version using cached branding defaults).
+// These are populated lazily from the branding provider via loadEmailDefaults();
+// the hardcoded fallback is only used when the DB is unavailable.
 export const MEMBERSHIP_STATUS_EMAIL_SUBJECTS: Record<
   MembershipStatusEmailAction,
   string
@@ -631,6 +675,17 @@ export const MEMBERSHIP_STATUS_EMAIL_SUBJECTS: Record<
   terminate: "[MSA Pakistan] Membership Terminated",
   reinstate: "[MSA Pakistan] Membership Reinstated",
 };
+
+/**
+ * Refresh the legacy MEMBERSHIP_STATUS_EMAIL_SUBJECTS with current branding.
+ * Call after loadEmailDefaults() has resolved.
+ */
+export async function refreshMembershipStatusSubjects(): Promise<void> {
+  const orgName = (await getEmailDefaults()).orgName;
+  MEMBERSHIP_STATUS_EMAIL_SUBJECTS.suspend = `[${orgName}] Membership Suspended`;
+  MEMBERSHIP_STATUS_EMAIL_SUBJECTS.terminate = `[${orgName}] Membership Terminated`;
+  MEMBERSHIP_STATUS_EMAIL_SUBJECTS.reinstate = `[${orgName}] Membership Reinstated`;
+}
 
 export interface MembershipStatusEmailParams {
   memberName: string;
@@ -703,6 +758,20 @@ export async function queueMembershipStatusEmail(
 
 async function getOrgName(): Promise<string> {
   return (await getBranding()).orgName;
+}
+
+// ============================================================================
+// Boot-time branding loader
+// ============================================================================
+
+/**
+ * Pre-load branding defaults into the sync cache so that getSmtpConfig()
+ * returns branding values even before the first email is sent.
+ * Safe to call multiple times (idempotent).
+ */
+export async function initEmailBranding(): Promise<void> {
+  await loadEmailDefaults();
+  await refreshMembershipStatusSubjects();
 }
 
 // ============================================================================

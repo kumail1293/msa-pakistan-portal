@@ -1,5 +1,8 @@
 import type { Express, NextFunction, Request, Response } from "express";
 import { ENV } from "./env";
+import { childLogger } from "./logger";
+
+const log = childLogger("Security");
 
 /**
  * Global security middleware.
@@ -85,7 +88,7 @@ export function registerSecurityMiddleware(app: Express) {
         }
         // Dev tooling (e.g. browser extensions) may send arbitrary Origins;
         // log and continue rather than breaking local development.
-        console.warn(`[CORS] Cross-origin request blocked in dev: ${origin}`);
+        log.warn({ origin }, "Cross-origin request blocked in dev");
       }
     }
     next();
@@ -96,7 +99,7 @@ export function registerErrorHandler(app: Express) {
   // Must be registered AFTER all routes. Catches anything not handled above.
   app.use(
     (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-      console.error("[ErrorHandler] Unhandled error:", err);
+      log.error({ err }, "Unhandled error");
       if (res.headersSent) return;
       // Preserve body-parser's statuses (malformed JSON -> 400, body too
       // large -> 413) without ever echoing the underlying message.

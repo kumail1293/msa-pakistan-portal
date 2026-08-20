@@ -11,6 +11,8 @@ import MemberDashboard from "./pages/MemberDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminCardQueue from "./pages/AdminCardQueue";
 import AdminConfig from "./pages/AdminConfig";
+import AdminFeatureFlags from "./pages/AdminFeatureFlags";
+import AdminAudit from "./pages/AdminAudit";
 import AdminLifecycle from "./pages/AdminLifecycle";
 import MembershipForm from "./pages/MembershipForm";
 import Opportunities from "./pages/Opportunities";
@@ -25,6 +27,9 @@ import Login from "./pages/Login";
 import OfficialLogin from "./pages/OfficialLogin";
 import OfficialHome from "./pages/OfficialHome";
 import OfficialsManagement from "./pages/OfficialsManagement";
+import AdminGovernanceConfig from "./pages/AdminGovernanceConfig";
+import AdminGovernanceDashboard from "./pages/AdminGovernanceDashboard";
+import GovernanceTransparency from "./pages/GovernanceTransparency";
 import SetPassword from "./pages/SetPassword";
 import VerifyCard from "./pages/VerifyCard";
 
@@ -111,6 +116,16 @@ function Router() {
           <AdminConfig />
         </OfficialLayout>
       </Route>
+      <Route path={"/admin/feature-flags"}>
+        <OfficialLayout>
+          <AdminFeatureFlags />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/audit"}>
+        <OfficialLayout>
+          <AdminAudit />
+        </OfficialLayout>
+      </Route>
       <Route path={"/admin/lifecycle"}>
         <OfficialLayout>
           <AdminLifecycle />
@@ -120,6 +135,17 @@ function Router() {
       <Route path={"/admin/officials"}>
         <OfficialLayout>
           <OfficialsManagement />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/governance"} component={GovernanceTransparency} />
+      <Route path={"/admin/governance"}>
+        <OfficialLayout>
+          <AdminGovernanceDashboard />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/governance-config"}>
+        <OfficialLayout>
+          <AdminGovernanceConfig />
         </OfficialLayout>
       </Route>
 
