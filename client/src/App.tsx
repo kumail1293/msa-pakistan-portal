@@ -30,7 +30,7 @@ import OfficialsManagement from "./pages/OfficialsManagement";
 import AdminGovernanceConfig from "./pages/AdminGovernanceConfig";
 import AdminGovernanceDashboard from "./pages/AdminGovernanceDashboard";
 import GovernanceTransparency from "./pages/GovernanceTransparency";
-import PublicLanding from "./pages/PublicLanding";
+// PublicLanding moved to WordPress public website (msapakistan.org)
 import AdminModules from "./pages/AdminModules";
 import SetPassword from "./pages/SetPassword";
 import VerifyCard from "./pages/VerifyCard";
@@ -38,8 +38,8 @@ import VerifyCard from "./pages/VerifyCard";
 function Router() {
   return (
     <Switch>
-      {/* Public Routes */}
-      <Route path="/" component={PublicLanding} />
+      {/* Member Portal Routes */}
+      <Route path="/" component={Home} />
       <Route path={"/login"} component={Login} />
       {/* Official Portal has its OWN sign-in pathway — members and officials
           never share a login form. Officials are provisioned by the Super
