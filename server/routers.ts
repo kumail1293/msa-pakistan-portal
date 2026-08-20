@@ -2151,6 +2151,118 @@ export const appRouter = router({
       }),
     }),
 
+    // ── Conflict/Disciplinary (§116) ─────────────────────────────────────
+    disciplinary: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { disciplinaryEngine } = await import("./config/disciplinaryEngine");
+        return disciplinaryEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { disciplinaryEngine } = await import("./config/disciplinaryEngine");
+        return disciplinaryEngine.getStats();
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string(), severity: z.string().optional(), respondentId: z.number().optional(), respondentName: z.string().optional() })).mutation(async ({ ctx, input }) => {
+        const { disciplinaryEngine } = await import("./config/disciplinaryEngine");
+        return disciplinaryEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Safeguarding (§117) ──────────────────────────────────────────────
+    safeguarding: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), category: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { safeguardingEngine } = await import("./config/disciplinaryEngine");
+        return safeguardingEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { safeguardingEngine } = await import("./config/disciplinaryEngine");
+        return safeguardingEngine.getStats();
+      }),
+    }),
+
+    // ── Feedback (§118) ──────────────────────────────────────────────────
+    feedback: router({
+      list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { feedbackEngine } = await import("./config/disciplinaryEngine");
+        return feedbackEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { feedbackEngine } = await import("./config/disciplinaryEngine");
+        return feedbackEngine.getStats();
+      }),
+    }),
+
+    // ── Helpdesk (§119) ──────────────────────────────────────────────────
+    helpdesk: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), priority: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { helpdeskEngine } = await import("./config/disciplinaryEngine");
+        return helpdeskEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { helpdeskEngine } = await import("./config/disciplinaryEngine");
+        return helpdeskEngine.getStats();
+      }),
+    }),
+
+    // ── Inventory (§125) ─────────────────────────────────────────────────
+    inventory: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), category: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { inventoryEngine } = await import("./config/disciplinaryEngine");
+        return inventoryEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { inventoryEngine } = await import("./config/disciplinaryEngine");
+        return inventoryEngine.getStats();
+      }),
+    }),
+
+    // ── Travel (§126) ────────────────────────────────────────────────────
+    travel: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { travelEngine } = await import("./config/disciplinaryEngine");
+        return travelEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { travelEngine } = await import("./config/disciplinaryEngine");
+        return travelEngine.getStats();
+      }),
+    }),
+
+    // ── MFA (§35) ────────────────────────────────────────────────────────
+    mfa: router({
+      status: officialModuleProcedure("config").input(z.object({ userId: z.number() })).query(async ({ input }) => {
+        const { mfaEngine } = await import("./config/mfaEngine");
+        return mfaEngine.getSettings(input.userId);
+      }),
+      history: officialModuleProcedure("config").input(z.object({ userId: z.number() })).query(async ({ input }) => {
+        const { mfaEngine } = await import("./config/mfaEngine");
+        return mfaEngine.getVerificationHistory(input.userId);
+      }),
+    }),
+
+    // ── Impersonation (§33) ──────────────────────────────────────────────
+    impersonation: router({
+      history: superAdminProcedure.query(async () => {
+        const { impersonationEngine } = await import("./config/impersonationEngine");
+        return impersonationEngine.getHistory();
+      }),
+      endAll: superAdminProcedure.mutation(async ({ ctx }) => {
+        const { impersonationEngine } = await import("./config/impersonationEngine");
+        return impersonationEngine.endAll(ctx.user!.id);
+      }),
+    }),
+
+    // ── i18n (§140) ──────────────────────────────────────────────────────
+    i18n: router({
+      translations: publicProcedure.input(z.object({ locale: z.string(), namespace: z.string().optional() })).query(async ({ input }) => {
+        const { i18nEngine } = await import("./config/i18nEngine");
+        return i18nEngine.getTranslations(input.locale as any, input.namespace as any);
+      }),
+      locales: publicProcedure.query(async () => {
+        const { i18nEngine } = await import("./config/i18nEngine");
+        return i18nEngine.getSupportedLocales();
+      }),
+    }),
+
     // ── Projects Module (§75-77) ────────────────────────────────────────
     projects: router({
       list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
@@ -2205,6 +2317,98 @@ export const appRouter = router({
       deadlines: officialModuleProcedure("config").query(async () => {
         const { governanceDashboard } = await import("./config/governanceDashboard");
         return governanceDashboard.getUpcomingDeadlines();
+      }),
+    }),
+
+    // ── Volunteer Management (§127) ─────────────────────────────────
+    volunteers: router({
+      list: officialModuleProcedure("config").input(z.object({ organizationId: z.number().optional(), type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { volunteerEngine } = await import("./config/volunteerEngine");
+        return volunteerEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { volunteerEngine } = await import("./config/volunteerEngine");
+        return volunteerEngine.getStats();
+      }),
+    }),
+
+    // ── Training/LMS (§129) + Skills (§128) ──────────────────────────
+    training: router({
+      courses: officialModuleProcedure("config").input(z.object({ organizationId: z.number().optional(), category: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { trainingEngine } = await import("./config/trainingEngine");
+        return trainingEngine.listCourses(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { trainingEngine } = await import("./config/trainingEngine");
+        return trainingEngine.getStats();
+      }),
+    }),
+    skills: router({
+      byUser: officialModuleProcedure("config").input(z.object({ userId: z.number() })).query(async ({ input }) => {
+        const { skillsEngine } = await import("./config/trainingEngine");
+        return skillsEngine.getUserSkills(input.userId);
+      }),
+      search: officialModuleProcedure("config").input(z.object({ skillName: z.string() })).query(async ({ input }) => {
+        const { skillsEngine } = await import("./config/trainingEngine");
+        return skillsEngine.searchBySkill(input.skillName);
+      }),
+    }),
+
+    // ── Recognition System (§130) ────────────────────────────────────
+    recognition: router({
+      awards: officialModuleProcedure("config").input(z.object({ organizationId: z.number().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { recognitionEngine } = await import("./config/recognitionEngine");
+        return recognitionEngine.listAwards(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { recognitionEngine } = await import("./config/recognitionEngine");
+        return recognitionEngine.getStats();
+      }),
+    }),
+
+    // ── Application Platform (§49-53) ────────────────────────────────
+    applications: router({
+      definitions: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), organizationId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { applicationPlatformEngine } = await import("./config/applicationPlatformEngine");
+        return applicationPlatformEngine.listDefinitions(input ?? {});
+      }),
+      inbox: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), organizationId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { applicationPlatformEngine } = await import("./config/applicationPlatformEngine");
+        return applicationPlatformEngine.getInbox(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { applicationPlatformEngine } = await import("./config/applicationPlatformEngine");
+        return applicationPlatformEngine.getStats();
+      }),
+    }),
+
+    // ── Meetings/Committees (§113-115) ───────────────────────────────
+    meetings: router({
+      list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), organizationId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { meetingsEngine } = await import("./config/meetingsEngine");
+        return meetingsEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { meetingsEngine } = await import("./config/meetingsEngine");
+        return meetingsEngine.getStats();
+      }),
+    }),
+    committees: router({
+      stats: officialModuleProcedure("config").query(async () => {
+        const { committeeEngine } = await import("./config/meetingsEngine");
+        return committeeEngine.getStats();
+      }),
+    }),
+
+    // ── Import/Export (§138) ──────────────────────────────────────────
+    importExport: router({
+      imports: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), organizationId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { importEngine } = await import("./config/importExportEngine");
+        return importEngine.list(input ?? {});
+      }),
+      exports: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), organizationId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { exportEngine } = await import("./config/importExportEngine");
+        return exportEngine.list(input ?? {});
       }),
     }),
 

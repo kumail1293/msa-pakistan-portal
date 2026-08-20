@@ -59,6 +59,11 @@ export default function AdminModules() {
   const projStats = trpc.enterprise.projects.stats.useQuery();
   const commStats = trpc.enterprise.communications.stats.useQuery();
   const analytics = trpc.enterprise.analytics.dashboard.useQuery();
+  const volStats = trpc.enterprise.volunteers.stats.useQuery();
+  const trainStats = trpc.enterprise.training.stats.useQuery();
+  const awardStats = trpc.enterprise.recognition.stats.useQuery();
+  const appStats = trpc.enterprise.applications.stats.useQuery();
+  const mtgStats = trpc.enterprise.meetings.stats.useQuery();
 
   if (loading) {
     return <div className="msap-page min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#138A73]" /></div>;
@@ -94,6 +99,11 @@ export default function AdminModules() {
             <TabsTrigger value="finance" className="gap-1.5 text-xs"><DollarSign className="h-3.5 w-3.5" />Finance</TabsTrigger>
             <TabsTrigger value="communications" className="gap-1.5 text-xs"><MessageSquare className="h-3.5 w-3.5" />Communications</TabsTrigger>
             <TabsTrigger value="projects" className="gap-1.5 text-xs"><FolderKanban className="h-3.5 w-3.5" />Projects</TabsTrigger>
+            <TabsTrigger value="governance" className="gap-1.5 text-xs"><Users className="h-3.5 w-3.5" />Governance</TabsTrigger>
+            <TabsTrigger value="training" className="gap-1.5 text-xs"><Activity className="h-3.5 w-3.5" />Training</TabsTrigger>
+            <TabsTrigger value="recognition" className="gap-1.5 text-xs"><TrendingUp className="h-3.5 w-3.5" />Recognition</TabsTrigger>
+            <TabsTrigger value="applications" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Applications</TabsTrigger>
+            <TabsTrigger value="meetings" className="gap-1.5 text-xs"><Calendar className="h-3.5 w-3.5" />Meetings</TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -296,6 +306,154 @@ export default function AdminModules() {
                   <p>✅ Assignment, due dates, priorities, tags</p>
                   <p>✅ Progress tracking and budget management</p>
                   <p>✅ Project governance with approval workflows</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Governance Tab */}
+          <TabsContent value="governance">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Disciplinary (§116)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Conflict resolution, misconduct, investigation, hearings</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Safeguarding (§117)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Incident reporting, designated officers, escalation</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Feedback (§118)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Complaints, suggestions, service requests, satisfaction</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Helpdesk (§119)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Ticketing, SLA tracking, resolution workflows</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Inventory (§125)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Assets, equipment, checkout/return, maintenance</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Travel (§126)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Travel requests, approval, reimbursement</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Volunteers (§127)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Opportunities, signups, hour tracking</p><p className="text-lg font-bold text-[#1B355E] mt-2">{Object.values(volStats.data ?? {}).reduce((a: number, b: any) => a + (b as number), 0)}</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">MFA (§35)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">TOTP, recovery codes, verification logs</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Impersonation (§33)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Admin impersonation with full audit trail</p></CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Training Tab */}
+          <TabsContent value="training">
+            <Card className="card-cinematic">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#1B355E] flex items-center gap-2"><Activity className="h-5 w-5 text-[#106E5B]" />Training & Skills</CardTitle>
+                <CardDescription>§128-129: LMS, courses, enrollment, skills registry</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-4 mb-4">
+                  {Object.entries(trainStats.data ?? {}).map(([key, val]) => (
+                    <div key={key} className="text-center p-3 rounded-lg bg-[#F0FAF7]">
+                      <p className="text-2xl font-bold text-[#1B355E]">{val as number}</p>
+                      <p className="text-xs text-[#66788D] capitalize">{String(key).replace(/_/g, " ")}</p>
+                    </div>
+                  ))}
+                  {Object.keys(trainStats.data ?? {}).length === 0 && <p className="text-sm text-[#66788D]">No courses yet</p>}
+                </div>
+                <div className="space-y-2 text-xs text-[#66788D]">
+                  <p>✅ Course types: self_paced, instructor_led, hybrid, workshop</p>
+                  <p>✅ Enrollment and progress tracking</p>
+                  <p>✅ Scoring with configurable passing threshold</p>
+                  <p>✅ Skills registry with proficiency levels and endorsements</p>
+                  <p>✅ Certificate generation on completion</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Recognition Tab */}
+          <TabsContent value="recognition">
+            <Card className="card-cinematic">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#1B355E] flex items-center gap-2"><TrendingUp className="h-5 w-5 text-[#106E5B]" />Recognition System</CardTitle>
+                <CardDescription>§130: Awards, nominations, judging, certificates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-3 mb-4">
+                  {Object.entries(awardStats.data ?? {}).map(([key, val]) => (
+                    <div key={key} className="text-center p-3 rounded-lg bg-[#F0FAF7]">
+                      <p className="text-2xl font-bold text-[#1B355E]">{val as number}</p>
+                      <p className="text-xs text-[#66788D] capitalize">{String(key).replace(/_/g, " ")}</p>
+                    </div>
+                  ))}
+                  {Object.keys(awardStats.data ?? {}).length === 0 && <p className="text-sm text-[#66788D]">No awards yet</p>}
+                </div>
+                <div className="space-y-2 text-xs text-[#66788D]">
+                  <p>✅ Award categories: excellence, service, leadership, innovation, humanitarian, academic</p>
+                  <p>✅ Nomination workflow with justification</p>
+                  <p>✅ Judging/decision with audit trail</p>
+                  <p>✅ Frequency: annual, quarterly, one-time</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Applications Tab */}
+          <TabsContent value="applications">
+            <Card className="card-cinematic">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#1B355E] flex items-center gap-2"><FileText className="h-5 w-5 text-[#106E5B]" />Application Platform</CardTitle>
+                <CardDescription>§49-53: Application definitions, submissions, review</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-3 mb-4">
+                  {Object.entries(appStats.data ?? {}).map(([key, val]) => (
+                    <div key={key} className="text-center p-3 rounded-lg bg-[#F0FAF7]">
+                      <p className="text-2xl font-bold text-[#1B355E]">{val as number}</p>
+                      <p className="text-xs text-[#66788D] capitalize">{String(key).replace(/_/g, " ")}</p>
+                    </div>
+                  ))}
+                  {Object.keys(appStats.data ?? {}).length === 0 && <p className="text-sm text-[#66788D]">No applications yet</p>}
+                </div>
+                <div className="space-y-2 text-xs text-[#66788D]">
+                  <p>✅ Application types: membership, leadership, event, project, custom</p>
+                  <p>✅ Configurable form schemas per definition</p>
+                  <p>✅ Submission inbox with review workflow</p>
+                  <p>✅ Conflict of interest tracking</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Meetings Tab */}
+          <TabsContent value="meetings">
+            <Card className="card-cinematic">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#1B355E] flex items-center gap-2"><Calendar className="h-5 w-5 text-[#106E5B]" />Meetings & Committees</CardTitle>
+                <CardDescription>§113-115: Board meetings, committee sessions, workspaces</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-3 mb-4">
+                  <div className="text-center p-3 rounded-lg bg-[#F0FAF7]"><p className="text-2xl font-bold text-[#1B355E]">{Object.values(mtgStats.data ?? {}).reduce((a: number, b: any) => a + (b as number), 0)}</p><p className="text-xs text-[#66788D]">Total Meetings</p></div>
+                  <div className="text-center p-3 rounded-lg bg-green-50"><p className="text-2xl font-bold text-green-700">{mtgStats.data?.completed ?? 0}</p><p className="text-xs text-[#66788D]">Completed</p></div>
+                  <div className="text-center p-3 rounded-lg bg-blue-50"><p className="text-2xl font-bold text-blue-700">{mtgStats.data?.scheduled ?? 0}</p><p className="text-xs text-[#66788D]">Scheduled</p></div>
+                </div>
+                <div className="space-y-2 text-xs text-[#66788D]">
+                  <p>✅ Meeting types: board, committee, task_force, general, special, working_group</p>
+                  <p>✅ Agenda management with item statuses</p>
+                  <p>✅ Minutes and decision recording</p>
+                  <p>✅ Committee membership with roles and terms</p>
+                  <p>✅ Quorum tracking</p>
                 </div>
               </CardContent>
             </Card>
