@@ -34,6 +34,7 @@ import GovernanceTransparency from "./pages/GovernanceTransparency";
 import AdminModules from "./pages/AdminModules";
 import SetPassword from "./pages/SetPassword";
 import VerifyCard from "./pages/VerifyCard";
+import SSOCallback from "./pages/SSOCallback";
 
 function Router() {
   return (
@@ -47,6 +48,8 @@ function Router() {
       <Route path={"/official/login"} component={OfficialLogin} />
       <Route path={"/set-password"} component={SetPassword} />
       <Route path={"/verify"} component={VerifyCard} />
+      {/* SSO Callback from WordPress */}
+      <Route path={"/sso/callback"} component={SSOCallback} />
 
       {/* Member Routes (shared sidebar shell) — public visitors only get the
           landing page, sign in, set-password and the membership form */}
