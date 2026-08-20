@@ -64,6 +64,9 @@ export default function AdminModules() {
   const awardStats = trpc.enterprise.recognition.stats.useQuery();
   const appStats = trpc.enterprise.applications.stats.useQuery();
   const mtgStats = trpc.enterprise.meetings.stats.useQuery();
+  const appLifecycle = trpc.enterprise.memberLifecycle.stats.useQuery();
+  const instStats = trpc.enterprise.institutions.stats.useQuery();
+  const integrStats = trpc.enterprise.integrations.stats.useQuery();
 
   if (loading) {
     return <div className="msap-page min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#138A73]" /></div>;
@@ -104,6 +107,8 @@ export default function AdminModules() {
             <TabsTrigger value="recognition" className="gap-1.5 text-xs"><TrendingUp className="h-3.5 w-3.5" />Recognition</TabsTrigger>
             <TabsTrigger value="applications" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Applications</TabsTrigger>
             <TabsTrigger value="meetings" className="gap-1.5 text-xs"><Calendar className="h-3.5 w-3.5" />Meetings</TabsTrigger>
+            <TabsTrigger value="membership" className="gap-1.5 text-xs"><Users className="h-3.5 w-3.5" />Membership</TabsTrigger>
+            <TabsTrigger value="platform" className="gap-1.5 text-xs"><TrendingUp className="h-3.5 w-3.5" />Platform</TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -457,6 +462,91 @@ export default function AdminModules() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          {/* Membership Tab */}
+          <TabsContent value="membership">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Membership Applications (§9)</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 grid-cols-3 mb-3">
+                    {Object.entries(appLifecycle.data ?? {}).map(([key, val]) => (
+                      <div key={key} className="text-center p-2 rounded-lg bg-[#F0FAF7]">
+                        <p className="text-lg font-bold text-[#1B355E]">{val as number}</p>
+                        <p className="text-[10px] text-[#66788D] capitalize">{String(key).replace(/_/g, " ")}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-[#66788D]">Submit → Review → Approve → Activate lifecycle</p>
+                </CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Onboarding (§12)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Configurable onboarding tasks, progress tracking, completion verification</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Institutions (§7)</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 grid-cols-2 mb-3">
+                    {Object.entries(instStats.data ?? {}).map(([key, val]) => (
+                      <div key={key} className="text-center p-2 rounded-lg bg-[#F0FAF7]">
+                        <p className="text-lg font-bold text-[#1B355E]">{val as number}</p>
+                        <p className="text-[10px] text-[#66788D] capitalize">{String(key).replace(/_/g, " ")}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-[#66788D]">University/college directory with LC associations</p>
+                </CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Privacy Controls (§19)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Profile visibility, contact preferences, data retention settings</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Consent Management (§20)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">GDPR-style consent tracking, revocation, audit trail</p></CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Saved Filters (§60)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">Custom views, filter presets, column preferences, shared filters</p></CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Platform Tab */}
+          <TabsContent value="platform">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">API Platform (§135)</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="space-y-1 text-xs text-[#66788D]">
+                    <p>✅ API key generation with prefix display</p>
+                    <p>✅ Key validation and usage tracking</p>
+                    <p>✅ Rate limiting (configurable per key)</p>
+                    <p>✅ Revocation and expiry</p>
+                    <p>✅ Usage logs with method, path, status, timing</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">External Integrations (§137)</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 grid-cols-2 mb-3">
+                    {Object.entries(integrStats.data ?? {}).map(([key, val]) => (
+                      <div key={key} className="text-center p-2 rounded-lg bg-[#F0FAF7]">
+                        <p className="text-lg font-bold text-[#1B355E]">{val as number}</p>
+                        <p className="text-[10px] text-[#66788D] capitalize">{String(key).replace(/_/g, " ")}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-[#66788D]">Email, SMS, payment, storage, analytics, auth integrations</p>
+                </CardContent>
+              </Card>
+              <Card className="card-cinematic">
+                <CardHeader><CardTitle className="text-sm text-[#1B355E]">Import/Export (§138)</CardTitle></CardHeader>
+                <CardContent><p className="text-xs text-[#66788D]">CSV, XLSX, JSON import with mapping; PDF, CSV, XLSX export</p></CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

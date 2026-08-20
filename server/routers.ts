@@ -2412,6 +2412,92 @@ export const appRouter = router({
       }),
     }),
 
+    // ── Member Lifecycle (§9, §12) ────────────────────────────────
+    memberLifecycle: router({
+      applications: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { memberLifecycleEngine } = await import("./config/memberLifecycleEngine");
+        return memberLifecycleEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { memberLifecycleEngine } = await import("./config/memberLifecycleEngine");
+        return memberLifecycleEngine.getStats();
+      }),
+    }),
+    onboarding: router({
+      progress: officialModuleProcedure("config").input(z.object({ userId: z.number() })).query(async ({ input }) => {
+        const { onboardingEngine } = await import("./config/memberLifecycleEngine");
+        return onboardingEngine.getProgress(input.userId);
+      }),
+      tasks: officialModuleProcedure("config").query(async () => {
+        const { onboardingEngine } = await import("./config/memberLifecycleEngine");
+        return onboardingEngine.listTasks();
+      }),
+    }),
+
+    // ── Institutions (§7) ────────────────────────────────────────────
+    institutions: router({
+      list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), city: z.string().optional(), province: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { institutionEngine } = await import("./config/institutionEngine");
+        return institutionEngine.list(input ?? {});
+      }),
+      search: officialModuleProcedure("config").input(z.object({ query: z.string() })).query(async ({ input }) => {
+        const { institutionEngine } = await import("./config/institutionEngine");
+        return institutionEngine.search(input.query);
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { institutionEngine } = await import("./config/institutionEngine");
+        return institutionEngine.getStats();
+      }),
+    }),
+
+    // ── Privacy & Consent (§19, §20) ────────────────────────────────
+    privacy: router({
+      settings: officialModuleProcedure("config").input(z.object({ userId: z.number() })).query(async ({ input }) => {
+        const { privacyEngine } = await import("./config/privacyConsentEngine");
+        return privacyEngine.getSettings(input.userId);
+      }),
+    }),
+    consent: router({
+      status: officialModuleProcedure("config").input(z.object({ userId: z.number() })).query(async ({ input }) => {
+        const { consentEngine } = await import("./config/privacyConsentEngine");
+        return consentEngine.getConsentStatus(input.userId);
+      }),
+    }),
+
+    // ── Saved Filters (§60) ─────────────────────────────────────────
+    filters: router({
+      list: officialModuleProcedure("config").input(z.object({ userId: z.number(), entityType: z.string().optional() })).query(async ({ input }) => {
+        const { savedFiltersEngine } = await import("./config/savedFiltersEngine");
+        return savedFiltersEngine.list(input.userId, input.entityType);
+      }),
+      shared: officialModuleProcedure("config").input(z.object({ entityType: z.string() })).query(async ({ input }) => {
+        const { savedFiltersEngine } = await import("./config/savedFiltersEngine");
+        return savedFiltersEngine.getShared(input.entityType);
+      }),
+    }),
+
+    // ── API Platform (§135) + Integrations (§137) ───────────────────
+    apiKeys: router({
+      list: officialModuleProcedure("config").input(z.object({ userId: z.number().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { apiPlatformEngine } = await import("./config/apiPlatformEngine");
+        return apiPlatformEngine.listKeys(input ?? {});
+      }),
+      usage: officialModuleProcedure("config").input(z.object({ apiKeyId: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { apiPlatformEngine } = await import("./config/apiPlatformEngine");
+        return apiPlatformEngine.getUsageStats(input?.apiKeyId);
+      }),
+    }),
+    integrations: router({
+      list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { integrationsEngine } = await import("./config/apiPlatformEngine");
+        return integrationsEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { integrationsEngine } = await import("./config/apiPlatformEngine");
+        return integrationsEngine.getStats();
+      }),
+    }),
+
     // ── System Info ──────────────────────────────────────────────────
     seedDefaults: superAdminProcedure.mutation(async ({ ctx }) => {
       await seedDefaultConfigs();
