@@ -2540,6 +2540,23 @@ export const appRouter = router({
       }),
     }),
 
+    // ── SaaS / Multi-Tenant (§148) ──────────────────────────────────
+    saas: router({
+      plans: publicProcedure.query(async () => {
+        const { saasEngine } = await import("./config/saasEngine");
+        await saasEngine.seedPlans();
+        return saasEngine.getPlans();
+      }),
+      stats: superAdminProcedure.query(async () => {
+        const { saasEngine } = await import("./config/saasEngine");
+        return saasEngine.getPlatformStats();
+      }),
+      organizations: superAdminProcedure.input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { saasEngine } = await import("./config/saasEngine");
+        return saasEngine.list(input ?? {});
+      }),
+    }),
+
     // ── System Info ──────────────────────────────────────────────────
     seedDefaults: superAdminProcedure.mutation(async ({ ctx }) => {
       await seedDefaultConfigs();

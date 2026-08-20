@@ -74,12 +74,18 @@ export default function MembershipCardGenerator() {
     try {
       // Render both canvases first, then trigger both downloads back-to-back
       // so the browser treats them as one gesture (never loses the second).
+      const CARD_W = 340;
+      const CARD_H = 214;
       const [front, back] = await Promise.allSettled([
         import("html2canvas").then((m) =>
           m.default(frontRef.current as HTMLElement, {
             backgroundColor: null,
             scale: 3,
             useCORS: true,
+            width: CARD_W,
+            height: CARD_H,
+            windowWidth: CARD_W,
+            windowHeight: CARD_H,
           })
         ),
         import("html2canvas").then((m) =>
@@ -87,6 +93,10 @@ export default function MembershipCardGenerator() {
             backgroundColor: null,
             scale: 3,
             useCORS: true,
+            width: CARD_W,
+            height: CARD_H,
+            windowWidth: CARD_W,
+            windowHeight: CARD_H,
           })
         ),
       ]);
