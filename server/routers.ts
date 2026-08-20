@@ -2047,6 +2047,146 @@ export const appRouter = router({
         }),
     }),
 
+    // ── Activities Module (§61-70) ──────────────────────────────────────
+    activities: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.getStats();
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string(), category: z.string().optional(), startDate: z.date().optional(), endDate: z.date().optional(), venue: z.string().optional(), city: z.string().optional(), mode: z.enum(["in_person", "online", "hybrid"]).optional(), budget: z.number().optional(), maxParticipants: z.number().optional() })).mutation(async ({ ctx, input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.create({ ...input, organizedBy: ctx.user?.id, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Documents Module (§54-58) ───────────────────────────────────────
+    documents: router({
+      list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.getStats();
+      }),
+      search: publicProcedure.input(z.object({ query: z.string().min(1).max(200) })).query(async ({ input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.search(input.query);
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string(), category: z.string().optional(), content: z.string().optional(), visibility: z.string().optional(), tags: z.array(z.string()).optional() })).mutation(async ({ ctx, input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Events Module (§78-82) ──────────────────────────────────────────
+    events: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.getStats();
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string().optional(), startDate: z.date(), endDate: z.date(), venue: z.string().optional(), city: z.string().optional(), mode: z.string().optional(), maxCapacity: z.number().optional(), fee: z.number().optional() })).mutation(async ({ ctx, input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Chapters Module (§21-27) ────────────────────────────────────────
+    chapters: router({
+      list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { chaptersEngine } = await import("./config/chaptersEngine");
+        return chaptersEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { chaptersEngine } = await import("./config/chaptersEngine");
+        return chaptersEngine.getStats();
+      }),
+      create: officialModuleProcedure("config").input(z.object({ name: z.string(), shortName: z.string().optional(), city: z.string().optional(), province: z.string().optional(), type: z.string().optional() })).mutation(async ({ ctx, input }) => {
+        const { chaptersEngine } = await import("./config/chaptersEngine");
+        return chaptersEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Finance Module (§120-126) ───────────────────────────────────────
+    finance: router({
+      summary: officialModuleProcedure("config").query(async () => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.getSummary();
+      }),
+      transactions: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.listTransactions(input ?? {});
+      }),
+      expenses: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.listExpenses(input ?? {});
+      }),
+      createBudget: officialModuleProcedure("config").input(z.object({ name: z.string(), fiscalYear: z.string(), totalBudget: z.number() })).mutation(async ({ ctx, input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.createBudget({ ...input, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Communications Module (§83-88) ──────────────────────────────────
+    communications: router({
+      announcements: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.listAnnouncements(input ?? {});
+      }),
+      templates: officialModuleProcedure("config").query(async () => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.listTemplates();
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.getStats();
+      }),
+    }),
+
+    // ── Projects Module (§75-77) ────────────────────────────────────────
+    projects: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { projectsEngine } = await import("./config/projectsEngine");
+        return projectsEngine.listProjects(input ?? {});
+      }),
+      tasks: officialModuleProcedure("config").input(z.object({ projectId: z.number().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { projectsEngine } = await import("./config/projectsEngine");
+        return projectsEngine.listTasks(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { projectsEngine } = await import("./config/projectsEngine");
+        return projectsEngine.getStats();
+      }),
+    }),
+
+    // ── Search ──────────────────────────────────────────────────────────
+    search: router({
+      global: publicProcedure.input(z.object({ query: z.string().min(1).max(200), entityTypes: z.array(z.string()).optional(), limit: z.number().optional() })).query(async ({ input }) => {
+        const { searchEngine } = await import("./config/searchEngine");
+        return searchEngine.search(input.query, { entityTypes: input.entityTypes, limit: input.limit });
+      }),
+    }),
+
+    // ── Analytics (§131-134) ────────────────────────────────────────────
+    analytics: router({
+      dashboard: officialModuleProcedure("config").query(async () => {
+        const { analyticsEngine } = await import("./config/analyticsEngine");
+        return analyticsEngine.getDashboardMetrics();
+      }),
+      report: officialModuleProcedure("config").input(z.object({ reportType: z.string() })).query(async ({ input }) => {
+        const { analyticsEngine } = await import("./config/analyticsEngine");
+        return analyticsEngine.generateReport(input.reportType);
+      }),
+    }),
+
     // ── Governance Dashboard ──────────────────────────────────────────
     governanceDashboard: router({
       /** Get aggregated governance dashboard data. */

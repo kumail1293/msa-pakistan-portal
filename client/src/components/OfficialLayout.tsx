@@ -53,6 +53,12 @@ const NAV_ITEMS = [
   },
   {
     module: "config",
+    label: "Modules",
+    path: "/admin/modules",
+    icon: Settings,
+  },
+  {
+    module: "config",
     label: "Config Studio",
     path: "/admin/governance-config",
     icon: Settings,

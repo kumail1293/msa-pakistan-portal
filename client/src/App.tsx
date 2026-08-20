@@ -30,6 +30,7 @@ import OfficialsManagement from "./pages/OfficialsManagement";
 import AdminGovernanceConfig from "./pages/AdminGovernanceConfig";
 import AdminGovernanceDashboard from "./pages/AdminGovernanceDashboard";
 import GovernanceTransparency from "./pages/GovernanceTransparency";
+import AdminModules from "./pages/AdminModules";
 import SetPassword from "./pages/SetPassword";
 import VerifyCard from "./pages/VerifyCard";
 
@@ -138,6 +139,11 @@ function Router() {
         </OfficialLayout>
       </Route>
       <Route path={"/governance"} component={GovernanceTransparency} />
+      <Route path={"/admin/modules"}>
+        <OfficialLayout>
+          <AdminModules />
+        </OfficialLayout>
+      </Route>
       <Route path={"/admin/governance"}>
         <OfficialLayout>
           <AdminGovernanceDashboard />
