@@ -5,6 +5,8 @@
  * system metrics, uptime tracking, and operational dashboards.
  */
 
+import * as os from "os";
+
 export interface HealthCheckResult {
   status: "healthy" | "degraded" | "unhealthy";
   timestamp: Date;
@@ -34,8 +36,8 @@ export const enterpriseOpsEngine = {
   /** Health check endpoint data */
   getHealth: (): HealthCheckResult => {
     const mem = process.memoryUsage();
-    const totalMem = require("os").totalmem();
-    const freeMem = require("os").freemem();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
 
     return {
@@ -83,7 +85,6 @@ export const enterpriseOpsEngine = {
   /** Get system metrics */
   getMetrics: () => {
     const mem = process.memoryUsage();
-    const os = require("os");
 
     return {
       uptime: Math.floor((Date.now() - startTime) / 1000),
