@@ -2641,6 +2641,406 @@ export const appRouter = router({
       return publicGovernance.getPositions();
     }),
   }),
+
+  // ============ CMS / CONTENT MANAGEMENT ============
+  cms: router({
+    // --- Dashboard ---
+    stats: publicProcedure.query(async () => {
+      const { cmsEngine } = await import("./config/cmsEngine");
+      return cmsEngine.getStats();
+    }),
+
+    // --- Pages ---
+    pages: router({
+      list: publicProcedure
+        .input(z.object({ status: z.string().optional(), authorId: z.string().optional(), parentId: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.listPages(input);
+        }),
+      get: publicProcedure
+        .input(z.object({ id: z.string().min(1) }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getPage(input.id);
+        }),
+      getBySlug: publicProcedure
+        .input(z.object({ slug: z.string().min(1) }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getPageBySlug(input.slug);
+        }),
+      create: publicProcedure
+        .input(z.object({
+          slug: z.string().min(1), title: z.string().min(1),
+          content: z.any().nullable().optional(), contentHtml: z.string().nullable().optional(),
+          excerpt: z.string().nullable().optional(), template: z.string().optional(),
+          status: z.enum(["draft", "published", "archived"]).optional(),
+          authorId: z.string().nullable().optional(),
+          metaTitle: z.string().nullable().optional(), metaDescription: z.string().nullable().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.createPage({
+            ...input,
+            status: (input.status || "draft") as "draft" | "published" | "archived",
+            parentId: null, metaImage: null, canonicalUrl: null,
+            ogTitle: null, ogDescription: null, ogImage: null,
+            schema: null, customFields: {}, templateData: {}, publishedAt: null,
+          } as any);
+        }),
+      update: publicProcedure
+        .input(z.object({ id: z.string().min(1), data: z.any() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.updatePage(input.id, input.data);
+        }),
+      delete: publicProcedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return { success: cmsEngine.deletePage(input.id) };
+        }),
+      trash: publicProcedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.trashPage(input.id);
+        }),
+      revisions: publicProcedure
+        .input(z.object({ entityType: z.string(), entityId: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getRevisions(input.entityType, input.entityId);
+        }),
+      seo: publicProcedure
+        .input(z.object({ pageId: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getPageSeo(input.pageId);
+        }),
+    }),
+
+    // --- Posts ---
+    posts: router({
+      list: publicProcedure
+        .input(z.object({ status: z.string().optional(), postType: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.listPosts(input);
+        }),
+      get: publicProcedure
+        .input(z.object({ id: z.string().min(1) }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getPost(input.id);
+        }),
+      create: publicProcedure
+        .input(z.object({
+          slug: z.string().min(1), title: z.string().min(1),
+          content: z.any().nullable().optional(), contentHtml: z.string().nullable().optional(),
+          excerpt: z.string().nullable().optional(), featuredImage: z.string().nullable().optional(),
+          status: z.enum(["draft", "published"]).optional(),
+          postType: z.string().optional(), authorId: z.string().nullable().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.createPost({
+            ...input, postType: input.postType || "post",
+            status: (input.status || "draft") as "draft" | "published",
+            metaTitle: null, metaDescription: null, customFields: {},
+            publishedAt: null,
+          } as any);
+        }),
+      update: publicProcedure
+        .input(z.object({ id: z.string().min(1), data: z.any() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.updatePost(input.id, input.data);
+        }),
+      delete: publicProcedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return { success: cmsEngine.deletePost(input.id) };
+        }),
+    }),
+
+    // --- Media ---
+    media: router({
+      list: publicProcedure
+        .input(z.object({ folder: z.string().optional(), mimeType: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.listMedia(input);
+        }),
+      get: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getMedia(input.id);
+        }),
+      folders: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.getMediaFolders();
+      }),
+      add: publicProcedure
+        .input(z.object({
+          filename: z.string(), originalName: z.string(), mimeType: z.string(),
+          size: z.number(), url: z.string(),
+          width: z.number().nullable().optional(), height: z.number().nullable().optional(),
+          thumbnailUrl: z.string().nullable().optional(),
+          alt: z.string().nullable().optional(), caption: z.string().nullable().optional(),
+          description: z.string().nullable().optional(), folder: z.string().optional(),
+          tags: z.array(z.string()).optional(), uploadedBy: z.string().nullable().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.addMedia(input as any);
+        }),
+      delete: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return { success: cmsEngine.deleteMedia(input.id) };
+        }),
+    }),
+
+    // --- Menus ---
+    menus: router({
+      list: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.listMenus();
+      }),
+      get: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getMenu(input.id);
+        }),
+      getByLocation: publicProcedure
+        .input(z.object({ location: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getMenuByLocation(input.location);
+        }),
+      create: publicProcedure
+        .input(z.object({ slug: z.string(), name: z.string(), location: z.string().nullable().optional(), items: z.any().optional() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.createMenu({ ...input, items: input.items || [] } as any);
+        }),
+      update: publicProcedure
+        .input(z.object({ id: z.string(), data: z.any() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.updateMenu(input.id, input.data);
+        }),
+      delete: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return { success: cmsEngine.deleteMenu(input.id) };
+        }),
+    }),
+
+    // --- Themes ---
+    themes: router({
+      list: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.listThemes();
+      }),
+      get: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getTheme(input.id);
+        }),
+      active: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.getActiveTheme();
+      }),
+      activate: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.activateTheme(input.id);
+        }),
+      updateSettings: publicProcedure
+        .input(z.object({ id: z.string(), settings: z.any() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.updateThemeSettings(input.id, input.settings);
+        }),
+    }),
+
+    // --- Plugins ---
+    plugins: router({
+      list: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.listPlugins();
+      }),
+      activate: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.activatePlugin(input.id);
+        }),
+      deactivate: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.deactivatePlugin(input.id);
+        }),
+    }),
+
+    // --- Forms ---
+    forms: router({
+      list: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.listForms();
+      }),
+      get: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getForm(input.id);
+        }),
+      create: publicProcedure
+        .input(z.object({ slug: z.string(), title: z.string(), fields: z.any().optional(), settings: z.any().optional() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.createForm({ ...input, fields: input.fields || [], settings: input.settings || {} });
+        }),
+      submit: publicProcedure
+        .input(z.object({ formId: z.string(), data: z.any() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.submitForm(input.formId, input.data);
+        }),
+      submissions: publicProcedure
+        .input(z.object({ formId: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.getFormSubmissions(input.formId);
+        }),
+    }),
+
+    // --- Redirects ---
+    redirects: router({
+      list: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.listRedirects();
+      }),
+      add: publicProcedure
+        .input(z.object({ from: z.string(), to: z.string(), type: z.enum(["301", "302", "307"]).optional() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.addRedirect(input.from, input.to, input.type as "301" | "302" | "307" | undefined);
+        }),
+      check: publicProcedure
+        .input(z.object({ path: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.checkRedirect(input.path);
+        }),
+      delete: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return { success: cmsEngine.deleteRedirect(input.id) };
+        }),
+    }),
+
+    // --- Page Builder ---
+    builder: router({
+      widgetTypes: publicProcedure
+        .input(z.object({ category: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          const { pageBuilderEngine } = await import("./config/pageBuilderEngine");
+          return pageBuilderEngine.getWidgetTypes(input?.category);
+        }),
+      templates: publicProcedure
+        .input(z.object({ category: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          const { pageBuilderEngine } = await import("./config/pageBuilderEngine");
+          return pageBuilderEngine.getTemplates(input?.category);
+        }),
+      render: publicProcedure
+        .input(z.object({ content: z.any(), device: z.enum(["desktop", "tablet", "mobile"]).optional() }))
+        .query(async ({ input }) => {
+          const { pageBuilderEngine } = await import("./config/pageBuilderEngine");
+          return pageBuilderEngine.renderToHtml(input.content, input.device as "desktop" | "tablet" | "mobile" | undefined);
+        }),
+    }),
+
+    // --- Widgets ---
+    widgets: router({
+      list: publicProcedure
+        .input(z.object({ sidebar: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.listWidgets(input?.sidebar);
+        }),
+    }),
+
+    // --- Custom Post Types ---
+    postTypes: router({
+      list: publicProcedure.query(async () => {
+        const { cmsEngine } = await import("./config/cmsEngine");
+        return cmsEngine.listPostTypes();
+      }),
+      customPosts: publicProcedure
+        .input(z.object({ typeSlug: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsEngine } = await import("./config/cmsEngine");
+          return cmsEngine.listCustomPosts(input.typeSlug);
+        }),
+    }),
+  }),
+
+  // ============ CMS SECURITY / ADMIN ============
+  cmsAdmin: router({
+    // --- Users ---
+    users: router({
+      list: publicProcedure.query(async () => {
+        const { cmsSecurity } = await import("./config/cmsSecurityEngine");
+        return cmsSecurity.listUsers();
+      }),
+      get: publicProcedure
+        .input(z.object({ id: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsSecurity } = await import("./config/cmsSecurityEngine");
+          return cmsSecurity.getUser(input.id);
+        }),
+      permissions: publicProcedure
+        .input(z.object({ userId: z.string() }))
+        .query(async ({ input }) => {
+          const { cmsSecurity } = await import("./config/cmsSecurityEngine");
+          return cmsSecurity.getEffectivePermissions(input.userId);
+        }),
+    }),
+    // --- Audit ---
+    audit: publicProcedure
+      .input(z.object({
+        userId: z.string().optional(), entityType: z.string().optional(),
+        limit: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const { cmsSecurity } = await import("./config/cmsSecurityEngine");
+        return cmsSecurity.getAuditLog(input);
+      }),
+    // --- Security Stats ---
+    securityStats: publicProcedure.query(async () => {
+      const { cmsSecurity } = await import("./config/cmsSecurityEngine");
+      return cmsSecurity.getStats();
+    }),
+    // --- Security Headers ---
+    securityHeaders: publicProcedure.query(async () => {
+      const { cmsSecurity } = await import("./config/cmsSecurityEngine");
+      return cmsSecurity.getSecurityHeaders();
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
