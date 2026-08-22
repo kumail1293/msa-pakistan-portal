@@ -18,6 +18,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 
 function initialsOf(name: string | null | undefined): string {
   if (!name) return "M";
@@ -32,6 +33,8 @@ function initialsOf(name: string | null | undefined): string {
 export default function MemberDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
+  const bannerRef = useScrollReveal<HTMLDivElement>();
+  const membershipRef = useScrollReveal<HTMLDivElement>();
   const profile = trpc.member.portalProfile.useQuery(undefined, {
     enabled: isAuthenticated,
     retry: false,
@@ -91,7 +94,7 @@ export default function MemberDashboard() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* ===== Profile ===== */}
-          <section className="msap-card lg:col-span-2 p-6">
+          <section ref={bannerRef} className="msap-reveal msap-card lg:col-span-2 p-6">
             <div className="flex items-center gap-5 border-b border-[#E7EFEC] pb-6">
               <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#1B355E,#138A73)] text-2xl font-bold text-white">
                 {initialsOf(memberName)}
@@ -123,7 +126,7 @@ export default function MemberDashboard() {
           </section>
 
           {/* ===== Membership ===== */}
-          <section className="msap-card p-6">
+          <section ref={membershipRef} className="msap-reveal msap-card p-6">
             <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[#5D7086]">
               <IdCard className="h-4 w-4 text-[#106E5B]" /> Membership
             </h3>
@@ -246,7 +249,7 @@ export default function MemberDashboard() {
           <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#1B355E]">
             <Award className="h-5 w-5 text-[#138A73]" /> Quick Access
           </h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="msap-reveal-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {[
               { label: "Activities", desc: "View & join activities", icon: <Calendar className="h-5 w-5" />, to: "/activities" },
               { label: "Events", desc: "Browse upcoming events", icon: <Calendar className="h-5 w-5" />, to: "/events" },
@@ -262,7 +265,7 @@ export default function MemberDashboard() {
               <button
                 key={item.label}
                 onClick={() => navigate(item.to)}
-                className="msap-card msap-card-hover group p-4 text-left"
+                className="msap-reveal msap-card msap-card-hover group p-4 text-left"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#E7F4F0] text-[#106E5B] transition-colors group-hover:bg-[#138A73] group-hover:text-white">
                   {item.icon}

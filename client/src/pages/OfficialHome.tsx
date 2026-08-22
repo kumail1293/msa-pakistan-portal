@@ -25,6 +25,7 @@ import {
   Vote,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 
 const MODULE_CARDS: {
   module: OfficialModule;
@@ -166,10 +167,12 @@ export default function OfficialHome() {
   const isSuper = user.role === "superadmin";
   const position = positionLabelOf(user?.officialPosition);
 
+  const bannerRef = useScrollReveal<HTMLDivElement>();
+
   return (
     <div className="space-y-8">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#0E2547_0%,#1B355E_52%,#106E5B_100%)] px-6 py-8 text-white shadow-[0_24px_60px_-32px_rgba(27,53,94,.65)] sm:px-10">
+      <div ref={bannerRef} className="msap-reveal relative overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#0E2547_0%,#1B355E_52%,#106E5B_100%)] px-6 py-8 text-white shadow-[0_24px_60px_-32px_rgba(27,53,94,.65)] sm:px-10">
         <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full border-[28px] border-white/10" />
         <div className="pointer-events-none absolute -bottom-20 -left-12 h-44 w-44 rounded-full bg-[#138A73]/30 blur-3xl" />
         <div className="relative z-10 max-w-2xl">
@@ -214,12 +217,12 @@ export default function OfficialHome() {
         </div>
 
         {accessibleModules.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {accessibleModules.map((card) => (
+          <div className="msap-reveal-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {accessibleModules.map((card, idx) => (
               <button
                 key={card.title}
                 onClick={() => navigate(card.path)}
-                className="group relative overflow-hidden rounded-xl border border-[#D9E4E1] bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#A8D8CD] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#138A73]"
+                className="msap-reveal msap-module-card group relative overflow-hidden rounded-xl border border-[#D9E4E1] bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#A8D8CD] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#138A73]"
               >
                 <div className="flex items-start gap-3">
                   <div

@@ -746,6 +746,193 @@
 
 
 /* =========================================================
+   PAGE TRANSITIONS
+   ========================================================= */
+
+@keyframes msapPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.msap-page > *:first-child {
+  animation: msapPageIn 0.3s ease-out both;
+}
+
+/* =========================================================
+   SKELETON LOADING
+   ========================================================= */
+
+.msap-skeleton {
+  background: linear-gradient(90deg, #e8eef2 25%, #f0f4f7 50%, #e8eef2 75%);
+  background-size: 200% 100%;
+  animation: msapSkeleton 1.5s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+@keyframes msapSkeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.msap-skeleton-text {
+  height: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.msap-skeleton-title {
+  height: 1.25rem;
+  width: 60%;
+  margin-bottom: 0.75rem;
+}
+
+.msap-skeleton-card {
+  height: 120px;
+  border-radius: 0.75rem;
+}
+
+/* =========================================================
+   SCROLL REVEAL
+   ========================================================= */
+
+.msap-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.msap-reveal.msap-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger children */
+.msap-reveal-stagger > *:nth-child(1) { transition-delay: 0ms; }
+.msap-reveal-stagger > *:nth-child(2) { transition-delay: 60ms; }
+.msap-reveal-stagger > *:nth-child(3) { transition-delay: 120ms; }
+.msap-reveal-stagger > *:nth-child(4) { transition-delay: 180ms; }
+.msap-reveal-stagger > *:nth-child(5) { transition-delay: 240ms; }
+.msap-reveal-stagger > *:nth-child(6) { transition-delay: 300ms; }
+.msap-reveal-stagger > *:nth-child(7) { transition-delay: 360ms; }
+.msap-reveal-stagger > *:nth-child(8) { transition-delay: 420ms; }
+
+/* =========================================================
+   ENHANCED CARD INTERACTIONS
+   ========================================================= */
+
+.msap-card-interactive {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.msap-card-interactive:hover {
+  transform: translateY(-3px) scale(1.005);
+  box-shadow:
+    0 20px 40px -20px rgba(16, 110, 91, 0.15),
+    0 8px 16px -8px rgba(27, 53, 94, 0.08);
+  border-color: #9ac8bb;
+}
+
+.msap-card-interactive:active {
+  transform: translateY(-1px) scale(0.998);
+  transition-duration: 0.08s;
+}
+
+/* Module card glow on hover */
+.msap-module-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.msap-module-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(16, 110, 91, 0.06), transparent 70%);
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.msap-module-card:hover::before {
+  opacity: 1;
+}
+
+/* =========================================================
+   STAT CARD PULSE
+   ========================================================= */
+
+.msap-stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.msap-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -16px rgba(27, 53, 94, 0.3);
+}
+
+/* =========================================================
+   BADGE ANIMATIONS
+   ========================================================= */
+
+.msap-badge-pop {
+  animation: msapBadgePop 0.3s ease-out both;
+}
+
+@keyframes msapBadgePop {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* =========================================================
+   TABLE ROW HOVER
+   ========================================================= */
+
+.msap-table-row {
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.msap-table-row:hover {
+  background-color: rgba(16, 110, 91, 0.04);
+}
+
+/* =========================================================
+   FOCUS RING TRANSITIONS
+   ========================================================= */
+
+.msap-page button:focus-visible,
+.msap-page a:focus-visible,
+.msap-page input:focus-visible {
+  outline: 2px solid var(--msap-teal-bright);
+  outline-offset: 2px;
+  transition: outline-offset 0.15s ease;
+}
+
+/* =========================================================
+   TOAST / NOTIFICATION ANIMATION
+   ========================================================= */
+
+@keyframes msapToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.msap-toast {
+  animation: msapToastIn 0.35s ease-out both;
+}
+
+/* =========================================================
    REDUCED MOTION
    ========================================================= */
 
@@ -824,5 +1011,22 @@
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+
+  .msap-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .msap-skeleton {
+    animation: none !important;
+  }
+
+  .msap-card-interactive:hover {
+    transform: none;
+  }
+
+  .msap-card-interactive:active {
+    transform: none;
   }
 }
