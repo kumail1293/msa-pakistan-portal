@@ -47,6 +47,8 @@ type Official = {
   passwordSetupRequired: boolean;
   lastSignedIn: Date | null;
   createdAt: Date;
+  termEnd: Date | null;
+  termExpired: boolean;
 };
 
 /** Position badge colors — grouped by body */
@@ -500,6 +502,11 @@ function OfficialRow({
               >
                 {official.active ? "Active" : "Disabled"}
               </span>
+              {official.termExpired && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                  Term Expired (§9.2.1)
+                </span>
+              )}
             </div>
             <p className="mt-0.5 truncate text-xs text-[#66788D]">
               {official.email}

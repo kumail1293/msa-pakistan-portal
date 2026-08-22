@@ -517,7 +517,7 @@ const POSITION_MODULE_MAP: Record<string, string[]> = {
 };
 
 export function canAccessModule(
-  user: Pick<StoredUser, "role" | "moduleAccess" | "officialPosition"> | null | undefined,
+  user: Pick<StoredUser, "role" | "moduleAccess" | "officialPosition" | "termEnd"> | null | undefined,
   module: string
 ): boolean {
   if (!user) return false;
@@ -527,6 +527,8 @@ export function canAccessModule(
     return (OFFICIAL_MODULES as readonly string[]).includes(module);
   }
   if (user.role === "official") {
+    // Term-expired officials lose all module access (§9.2.1)
+    if (user.termEnd && new Date(user.termEnd).getTime() < Date.now()) return false;
     // Check position-based access first
     const pos = user.officialPosition;
     if (pos && POSITION_MODULE_MAP[pos]) {
@@ -552,9 +554,13 @@ export type OfficialListEntry = {
   passwordSetupRequired: boolean;
   lastSignedIn: Date | null;
   createdAt: Date;
+  termEnd: Date | null;
+  termExpired: boolean;
 };
 
 function toOfficialListEntry(user: StoredUser): OfficialListEntry {
+  const termEnd = user.termEnd ?? null;
+  const termExpired = termEnd ? new Date(termEnd).getTime() < Date.now() : false;
   return {
     id: user.id,
     name: user.name,
@@ -568,6 +574,8 @@ function toOfficialListEntry(user: StoredUser): OfficialListEntry {
     passwordSetupRequired: Boolean(user.passwordSetupRequired),
     lastSignedIn: user.lastSignedIn,
     createdAt: user.createdAt,
+    termEnd,
+    termExpired,
   };
 }
 

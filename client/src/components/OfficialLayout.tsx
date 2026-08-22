@@ -55,34 +55,33 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Overview",
     items: [
       { module: null, label: "Home", path: "/official", icon: LayoutDashboard },
-      { module: "recruitment", label: "Recruitment", path: "/admin/dashboard", icon: BarChart3 },
-      { module: "card-queue", label: "Card Queue", path: "/admin/cards", icon: IdCard },
+      { module: "dashboard", label: "Dashboard", path: "/admin/dashboard", icon: BarChart3 },
+      { module: "cards", label: "Card Queue", path: "/admin/cards", icon: IdCard },
     ],
   },
   {
     label: "Modules",
     items: [
-      { module: "config", label: "Activities", path: "/admin/activities", icon: Calendar },
-      { module: "config", label: "Events", path: "/admin/events", icon: Calendar },
-      { module: "config", label: "Elections", path: "/admin/elections", icon: Vote },
-      { module: "config", label: "Finance", path: "/admin/finance", icon: DollarSign },
-      { module: "config", label: "Documents", path: "/admin/documents", icon: FileText },
-      { module: "config", label: "Communications", path: "/admin/communications", icon: Megaphone },
-      { module: "config", label: "Plenary", path: "/admin/plenary", icon: Gavel },
-      { module: "config", label: "NEF/NRF", path: "/admin/nef-nrf", icon: Coins },
+      { module: "activities", label: "Activities", path: "/admin/activities", icon: Calendar },
+      { module: "events", label: "Events", path: "/admin/events", icon: Calendar },
+      { module: "elections", label: "Elections", path: "/admin/elections", icon: Vote },
+      { module: "finance", label: "Finance", path: "/admin/finance", icon: DollarSign },
+      { module: "documents", label: "Documents", path: "/admin/documents", icon: FileText },
+      { module: "communications", label: "Communications", path: "/admin/communications", icon: Megaphone },
+      { module: "plenary", label: "Plenary", path: "/admin/plenary", icon: Gavel },
+      { module: "nef-nrf", label: "NEF/NRF", path: "/admin/nef-nrf", icon: Coins },
     ],
   },
   {
     label: "Administration",
     items: [
-      { module: "interviews", label: "Interviews", path: "/admin/interviews/schedule", icon: Calendar },
       { module: "lifecycle", label: "Lifecycle", path: "/admin/lifecycle", icon: Scale },
       { module: "officials", label: "Officials", path: "/admin/officials", icon: UserCog },
       { module: "config", label: "Config", path: "/admin/config", icon: Settings },
-      { module: "config", label: "Governance", path: "/admin/governance", icon: Scale },
-      { module: "config", label: "Modules", path: "/admin/modules", icon: Settings },
-      { module: "config", label: "Feature Flags", path: "/admin/feature-flags", icon: Flag },
-      { module: "config", label: "Audit Log", path: "/admin/audit", icon: ScrollText },
+      { module: "governance", label: "Governance", path: "/admin/governance", icon: Scale },
+      { module: "modules", label: "Modules", path: "/admin/modules", icon: Settings },
+      { module: "governance-config", label: "Governance Config", path: "/admin/governance-config", icon: Settings },
+      { module: "audit", label: "Audit Log", path: "/admin/audit", icon: ScrollText },
     ],
   },
 ];
@@ -303,6 +302,11 @@ export default function OfficialLayout({
 
         {/* Main content */}
         <main className="flex-1 min-w-0 px-4 py-6 sm:px-6">
+          {user && user.role === "official" && user.termEnd && new Date(user.termEnd).getTime() < Date.now() && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <strong>⚠ Term Expired (§9.2.1).</strong> Your official term has ended. Contact the Super Admin to renew your term or update your position.
+            </div>
+          )}
           {children}
         </main>
       </div>
