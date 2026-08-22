@@ -94,8 +94,16 @@ export default function MemberPlenary() {
                       <Card key={session.id} className="msap-card border-emerald-200 bg-emerald-50/30">
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between">
-                            <h3 className="text-lg font-semibold text-[#1B355E]">{session.title}</h3>
-                            <Badge className={`border ${getStatusColor(session.status)}`}>In Progress</Badge>
+                            <div className="flex-1">
+                              <h3 className="text-lg font-semibold text-[#1B355E]">{session.title}</h3>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge className={`border ${getStatusColor(session.status)}`}>In Progress</Badge>
+                                {session.type === "annual" && <Badge className="border bg-blue-100 text-blue-700 border-blue-200">NGA (§8.1)</Badge>}
+                                {session.type === "presidents_session" && <Badge className="border bg-purple-100 text-purple-700 border-purple-200">Presidents' Session (§8.9)</Badge>}
+                                {session.type === "standing_committee" && <Badge className="border bg-amber-100 text-amber-700 border-amber-200">SC Session (§10.2)</Badge>}
+                                {session.type === "extraordinary" && <Badge className="border bg-red-100 text-red-700 border-red-200">Extraordinary</Badge>}
+                              </div>
+                            </div>
                           </div>
                           {session.description && <p className="text-sm text-[#5D7086] mt-2">{session.description}</p>}
                           <div className="mt-3 flex items-center gap-4 text-sm text-[#5D7086]">
@@ -117,8 +125,15 @@ export default function MemberPlenary() {
                       <Card key={session.id} className="msap-card msap-card-hover">
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between">
-                            <h3 className="text-lg font-semibold text-[#1B355E]">{session.title}</h3>
-                            <Badge className={`border ${getStatusColor(session.status)}`}>{session.status?.replace(/_/g, " ")}</Badge>
+                            <div className="flex-1">
+                              <h3 className="text-lg font-semibold text-[#1B355E]">{session.title}</h3>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge className={`border ${getStatusColor(session.status)}`}>{session.status?.replace(/_/g, " ")}</Badge>
+                                {session.type === "annual" && <Badge className="border bg-blue-100 text-blue-700 border-blue-200">NGA (§8.1)</Badge>}
+                                {session.type === "presidents_session" && <Badge className="border bg-purple-100 text-purple-700 border-purple-200">Presidents' Session (§8.9)</Badge>}
+                                {session.type === "standing_committee" && <Badge className="border bg-amber-100 text-amber-700 border-amber-200">SC Session (§10.2)</Badge>}
+                              </div>
+                            </div>
                           </div>
                           {session.description && <p className="text-sm text-[#5D7086] mt-2">{session.description}</p>}
                           <div className="mt-3 flex items-center gap-4 text-sm text-[#5D7086]">

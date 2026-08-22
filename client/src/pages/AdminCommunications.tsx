@@ -53,7 +53,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 export default function AdminCommunications() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [tab, setTab] = useState<"announcements" | "templates">("announcements");
+  const [tab, setTab] = useState<"announcements" | "templates" | "publications">("announcements");
   const [createAnnouncementOpen, setCreateAnnouncementOpen] = useState(false);
   const [newAnnouncement, setNewAnnouncement] = useState({
     title: "",
@@ -216,6 +216,7 @@ export default function AdminCommunications() {
         {[
           { key: "announcements" as const, label: "Announcements" },
           { key: "templates" as const, label: "Email Templates" },
+          { key: "publications" as const, label: "§14.2 Publications (VPPRC)" },
         ].map((t) => (
           <button
             key={t.key}
@@ -350,6 +351,27 @@ export default function AdminCommunications() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Publications Tab — §14.2: All publications must be approved by VPPRC */}
+      {tab === "publications" && (
+        <Card className="msap-card">
+          <CardHeader>
+            <CardTitle className="text-[#1B355E]">Publication Approvals (§14.2)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-4">
+              <p className="text-sm text-amber-800">
+                <strong>§14.2:</strong> All printed &amp; digital publications (leaflets, pamphlets, booklets) must be approved by the VPPRC before distribution. All materials written in the name of MSA-Pakistan must be on official stationery and approved by the Executive Board.
+              </p>
+            </div>
+            <div className="text-center py-12 text-[#5D7086]">
+              <Mail className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">Publication approval queue</p>
+              <p className="text-sm mt-1">Submitted publications will appear here for VPPRC review</p>
+            </div>
           </CardContent>
         </Card>
       )}
