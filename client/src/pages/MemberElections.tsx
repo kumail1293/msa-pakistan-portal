@@ -17,16 +17,16 @@ export default function MemberElections() {
   const [selectedTab, setSelectedTab] = useState("active");
   const [selectedBallots, setSelectedBallots] = useState<Record<string, string>>({});
 
-  const electionsQuery = (trpc as any).elections?.list?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
-  const myVotesQuery = (trpc as any).elections?.myVotes?.useQuery?.() ?? { data: [], isLoading: false };
-  const castBallot = (trpc as any).elections?.castBallot?.useMutation?.({
+  const electionsQuery = trpc.elections.list.useQuery({ limit: 50 });
+  const myVotesQuery = trpc.elections.myVotes.useQuery();
+  const castBallot = trpc.elections.castBallot.useMutation({
     onSuccess: () => {
       toast.success("Your ballot has been cast!");
       setSelectedBallots({});
-      myVotesQuery.refetch?.();
+      myVotesQuery.refetch();
     },
-    onError: (err: Error) => toast.error(err.message || "Could not cast ballot."),
-  }) ?? { mutate: () => {}, isPending: false };
+    onError: (err: any) => toast.error(err.message || "Could not cast ballot."),
+  });
 
   const elections = (electionsQuery.data ?? []) as any[];
   const myVotes = (myVotesQuery.data ?? []) as any[];

@@ -35,23 +35,23 @@ export default function MemberNEF() {
   const [nef, setNef] = useState(initialNef);
   const [nrf, setNrf] = useState(initialNrf);
 
-  const myNefQuery = (trpc as any).nefNrf?.myNefSubmissions?.useQuery?.() ?? { data: [], isLoading: false };
-  const myNrfQuery = (trpc as any).nefNrf?.myNrfReports?.useQuery?.() ?? { data: [], isLoading: false };
-  const summaryQuery = (trpc as any).nefNrf?.mySummary?.useQuery?.() ?? { data: null, isLoading: false };
+  const myNefQuery = trpc.nefNrf.myNefSubmissions.useQuery();
+  const myNrfQuery = trpc.nefNrf.myNrfReports.useQuery();
+  const summaryQuery = trpc.nefNrf.mySummary.useQuery();
 
   const myNef = (myNefQuery.data ?? []) as any[];
   const myNrf = (myNrfQuery.data ?? []) as any[];
   const summary = summaryQuery.data as any;
 
-  const submitNef = (trpc as any).nefNrf?.submitNef?.useMutation?.({
-    onSuccess: () => { toast.success("NEF submitted — VPA will review within 14 days"); setShowNefForm(false); setNef(initialNef); myNefQuery.refetch?.(); },
-    onError: (e: Error) => toast.error(e.message),
-  }) ?? { mutate: () => {}, isPending: false };
+  const submitNef = trpc.nefNrf.submitNef.useMutation({
+    onSuccess: () => { toast.success("NEF submitted — VPA will review within 14 days"); setShowNefForm(false); setNef(initialNef); myNefQuery.refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
 
-  const submitNrf = (trpc as any).nefNrf?.submitNrf?.useMutation?.({
-    onSuccess: () => { toast.success("NRF submitted — certificate will be issued after VPA approval"); setNrfActivityId(null); setNrf(initialNrf); myNrfQuery.refetch?.(); myNefQuery.refetch?.(); },
-    onError: (e: Error) => toast.error(e.message),
-  }) ?? { mutate: () => {}, isPending: false };
+  const submitNrf = trpc.nefNrf.submitNrf.useMutation({
+    onSuccess: () => { toast.success("NRF submitted — certificate will be issued after VPA approval"); setNrfActivityId(null); setNrf(initialNrf); myNrfQuery.refetch(); myNefQuery.refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const approvedActivities = myNef.filter((a: any) => a.status === "approved");
   const reportingActivities = myNef.filter((a: any) => a.status === "reporting" || a.status === "evaluation");
@@ -160,6 +160,8 @@ export default function MemberNEF() {
                   <Button variant="outline" onClick={() => setShowNefForm(false)}>Cancel</Button>
                   <Button className="bg-[#138A73] text-white" disabled={!nef.title || !nef.description || submitNef.isPending} onClick={() => submitNef.mutate({
                     ...nef,
+                    activityLevel: nef.activityLevel as "local" | "national" | "regional" | "international",
+                    mode: nef.mode as "in_person" | "online" | "hybrid" | undefined,
                     startDate: nef.startDate ? new Date(nef.startDate) : undefined,
                     endDate: nef.endDate ? new Date(nef.endDate) : undefined,
                   })}>

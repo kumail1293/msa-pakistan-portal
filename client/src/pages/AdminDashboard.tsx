@@ -56,14 +56,14 @@ export default function AdminDashboard() {
   };
 
   // ── Module Stats ──
-  const activitiesStats = (trpc as any).admin?.activities?.stats?.useQuery?.() ?? { data: {} };
-  const eventsStats = (trpc as any).admin?.events?.stats?.useQuery?.() ?? { data: {} };
-  const electionsStats = (trpc as any).admin?.elections?.stats?.useQuery?.() ?? { data: {} };
-  const financeStats = (trpc as any).admin?.finance?.summary?.useQuery?.() ?? { data: null };
-  const documentsStats = (trpc as any).admin?.documents?.stats?.useQuery?.() ?? { data: {} };
-  const communicationsStats = (trpc as any).admin?.communications?.stats?.useQuery?.() ?? { data: {} };
-  const plenaryStats = (trpc as any).admin?.plenary?.stats?.useQuery?.() ?? { data: {} };
-  const nefNrfStats = (trpc as any).admin?.nefNrf?.stats?.useQuery?.() ?? { data: {} };
+  const activitiesStats = trpc.admin.activities.stats.useQuery();
+  const eventsStats = trpc.admin.events.stats.useQuery();
+  const electionsStats = trpc.admin.elections.stats.useQuery();
+  const financeStats = trpc.admin.finance.summary.useQuery();
+  const documentsStats = trpc.admin.documents.stats.useQuery();
+  const communicationsStats = trpc.admin.communications.stats.useQuery();
+  const plenaryStats = trpc.admin.plenary.stats.useQuery();
+  const nefNrfStats = trpc.admin.nefNrf.stats.useQuery();
 
   if (loading) {
     return (

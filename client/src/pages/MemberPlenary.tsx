@@ -13,8 +13,8 @@ export default function MemberPlenary() {
   const [, navigate] = useLocation();
   const [selectedTab, setSelectedTab] = useState("sessions");
 
-  const sessionsQuery = (trpc as any).plenary?.list?.useQuery?.({ limit: 20 }) ?? { data: [], isLoading: false };
-  const resolutionsQuery = (trpc as any).plenary?.resolutions?.useQuery?.({ limit: 20 }) ?? { data: [], isLoading: false };
+  const sessionsQuery = trpc.plenary.list.useQuery({ limit: 20 });
+  const resolutionsQuery = trpc.plenary.resolutions.useQuery({ limit: 20 });
 
   const sessions = (sessionsQuery.data ?? []) as any[];
   const resolutions = (resolutionsQuery.data ?? []) as any[];

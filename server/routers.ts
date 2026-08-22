@@ -1990,7 +1990,7 @@ export const appRouter = router({
         const { plenaryEngine } = await import("./config/plenaryEngine");
         return plenaryEngine.getSession(input.sessionId);
       }),
-      createSession: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string().optional(), scheduledStart: z.date(), scheduledEnd: z.date(), chairId: z.number(), secretaryId: z.number() })).mutation(async ({ ctx, input }) => {
+      createSession: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string().optional(), scheduledStart: z.date(), scheduledEnd: z.date(), chairId: z.number(), secretaryId: z.number(), quorumRequired: z.number().optional() })).mutation(async ({ ctx, input }) => {
         const { plenaryEngine } = await import("./config/plenaryEngine");
         return plenaryEngine.createSession({ ...input, createdById: ctx.user?.id });
       }),

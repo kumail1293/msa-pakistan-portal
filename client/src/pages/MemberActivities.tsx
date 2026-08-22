@@ -18,15 +18,15 @@ export default function MemberActivities() {
   const [filterLevel, setFilterLevel] = useState<string>("all");
   const [filterSc, setFilterSc] = useState<string>("all");
 
-  const activitiesQuery = (trpc as any).activities?.list?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
-  const myRegsQuery = (trpc as any).activities?.myRegistrations?.useQuery?.() ?? { data: [], isLoading: false };
-  const register = (trpc as any).activities?.register?.useMutation?.({
+  const activitiesQuery = trpc.activities.list.useQuery({ limit: 50 });
+  const myRegsQuery = trpc.activities.myRegistrations.useQuery();
+  const register = trpc.activities.register.useMutation({
     onSuccess: () => {
       toast.success("Registration submitted!");
-      myRegsQuery.refetch?.();
+      myRegsQuery.refetch();
     },
-    onError: (err: Error) => toast.error(err.message || "Could not register."),
-  }) ?? { mutate: () => {}, isPending: false };
+    onError: (err: any) => toast.error(err.message || "Could not register."),
+  });
 
   const activities = (activitiesQuery.data ?? []) as any[];
   const myRegistrations = (myRegsQuery.data ?? []) as any[];

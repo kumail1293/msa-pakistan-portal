@@ -16,12 +16,12 @@ export default function MemberCommunications() {
   const [, navigate] = useLocation();
   const [selectedTab, setSelectedTab] = useState("announcements");
 
-  const announcementsQuery = (trpc as any).communications?.announcements?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
-  const prefsQuery = (trpc as any).communications?.preferences?.useQuery?.() ?? { data: null, isLoading: false };
-  const updatePrefs = (trpc as any).communications?.updatePreferences?.useMutation?.({
+  const announcementsQuery = trpc.communications.announcements.useQuery({ limit: 50 });
+  const prefsQuery = trpc.communications.preferences.useQuery();
+  const updatePrefs = trpc.communications.updatePreferences.useMutation({
     onSuccess: () => toast.success("Preferences updated!"),
-    onError: (err: Error) => toast.error(err.message || "Could not update preferences."),
-  }) ?? { mutate: () => {}, isPending: false };
+    onError: (err: any) => toast.error(err.message || "Could not update preferences."),
+  });
 
   const announcements = (announcementsQuery.data ?? []) as any[];
   const prefs = prefsQuery.data as any;

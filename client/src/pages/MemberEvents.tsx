@@ -16,15 +16,15 @@ export default function MemberEvents() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
 
-  const eventsQuery = (trpc as any).events?.list?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
-  const myRegsQuery = (trpc as any).events?.myRegistrations?.useQuery?.() ?? { data: [], isLoading: false };
-  const register = (trpc as any).events?.register?.useMutation?.({
+  const eventsQuery = trpc.events.list.useQuery({ limit: 50 });
+  const myRegsQuery = trpc.events.myRegistrations.useQuery();
+  const register = trpc.events.register.useMutation({
     onSuccess: () => {
       toast.success("Registration submitted!");
-      myRegsQuery.refetch?.();
+      myRegsQuery.refetch();
     },
-    onError: (err: Error) => toast.error(err.message || "Could not register."),
-  }) ?? { mutate: () => {}, isPending: false };
+    onError: (err: any) => toast.error(err.message || "Could not register."),
+  });
 
   const events = (eventsQuery.data ?? []) as any[];
   const myRegistrations = (myRegsQuery.data ?? []) as any[];

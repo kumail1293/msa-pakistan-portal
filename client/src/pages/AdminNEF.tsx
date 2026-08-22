@@ -38,39 +38,39 @@ export default function AdminNEF() {
   const [reviewNotes, setReviewNotes] = useState("");
 
   // ── Queries ──
-  const nefQuery = (trpc as any).admin?.nefNrf?.listNefSubmissions?.useQuery?.({
+  const nefQuery = trpc.admin.nefNrf.listNefSubmissions.useQuery({
     status: statusFilter === "all" ? undefined : statusFilter,
     activityLevel: levelFilter === "all" ? undefined : levelFilter,
     limit: 50,
-  }) ?? { data: [], isLoading: false };
+  });
 
-  const nrfQuery = (trpc as any).admin?.nefNrf?.listNrfReports?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
+  const nrfQuery = trpc.admin.nefNrf.listNrfReports.useQuery({ limit: 50 });
 
-  const statsQuery = (trpc as any).admin?.nefNrf?.stats?.useQuery?.() ?? { data: {} };
+  const statsQuery = trpc.admin.nefNrf.stats.useQuery();
 
   // ── Mutations ──
-  const reviewNef = (trpc as any).admin?.nefNrf?.reviewNef?.useMutation?.({
+  const reviewNef = trpc.admin.nefNrf.reviewNef.useMutation({
     onSuccess: () => {
       toast.success("NEF decision submitted");
-      nefQuery.refetch?.();
+      nefQuery.refetch();
       setReviewDialog(null);
       setReviewNotes("");
     },
-    onError: (err: Error) => toast.error(err.message),
-  }) ?? { mutate: () => {}, isPending: false };
+    onError: (err: any) => toast.error(err.message),
+  });
 
-  const approveNrf = (trpc as any).admin?.nefNrf?.approveNrf?.useMutation?.({
+  const approveNrf = trpc.admin.nefNrf.approveNrf.useMutation({
     onSuccess: () => {
       toast.success("NRF approved — certificate eligible");
-      nrfQuery.refetch?.();
+      nrfQuery.refetch();
     },
-    onError: (err: Error) => toast.error(err.message),
-  }) ?? { mutate: () => {}, isPending: false };
+    onError: (err: any) => toast.error(err.message),
+  });
 
-  const issueCert = (trpc as any).admin?.nefNrf?.issueCertificate?.useMutation?.({
-    onSuccess: () => { toast.success("Certificate issued"); nefQuery.refetch?.(); },
-    onError: (err: Error) => toast.error(err.message),
-  }) ?? { mutate: () => {}, isPending: false };
+  const issueCert = trpc.admin.nefNrf.issueCertificate.useMutation({
+    onSuccess: () => { toast.success("Certificate issued"); nefQuery.refetch(); },
+    onError: (err: any) => toast.error(err.message),
+  });
 
   const nefSubmissions = (nefQuery.data ?? []) as any[];
   const nrfReports = (nrfQuery.data ?? []) as any[];
@@ -389,7 +389,7 @@ export default function AdminNEF() {
               <Button variant="outline" onClick={() => { setReviewDialog(null); setReviewNotes(""); }}>Cancel</Button>
               <Button
                 className={reviewDialog.decision === "accepted" ? "bg-[#138A73] text-white" : reviewDialog.decision === "rejected" ? "bg-red-600 text-white" : "bg-amber-600 text-white"}
-                onClick={() => reviewNef.mutate({ activityId: reviewDialog.activityId, decision: reviewDialog.decision, notes: reviewNotes })}
+                onClick={() => reviewNef.mutate({ activityId: reviewDialog.activityId, decision: reviewDialog.decision as "accepted" | "rejected" | "revision_needed", notes: reviewNotes })}
                 disabled={reviewNef.isPending}
               >
                 {reviewNef.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}

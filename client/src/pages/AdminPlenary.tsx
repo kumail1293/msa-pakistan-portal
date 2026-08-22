@@ -15,14 +15,14 @@ export default function AdminPlenary() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newSession, setNewSession] = useState({ title: "", description: "", type: "ordinary", scheduledStart: "", scheduledEnd: "", chairId: 0, secretaryId: 0, quorumRequired: 0 });
 
-  const sessionsQuery = (trpc as any).admin?.plenary?.listSessions?.useQuery?.({ status: statusFilter || undefined, limit: 50 }) ?? { data: [], isLoading: false };
-  const resolutionsQuery = (trpc as any).admin?.plenary?.listResolutions?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
-  const statsQuery = (trpc as any).admin?.plenary?.stats?.useQuery?.() ?? { data: {} };
+  const sessionsQuery = trpc.admin.plenary.listSessions.useQuery({ status: statusFilter || undefined, limit: 50 });
+  const resolutionsQuery = trpc.admin.plenary.listResolutions.useQuery({ limit: 50 });
+  const statsQuery = trpc.admin.plenary.stats.useQuery();
 
-  const createSession = (trpc as any).admin?.plenary?.createSession?.useMutation?.({
-    onSuccess: () => { toast.success("Session created"); setCreateOpen(false); sessionsQuery.refetch?.(); setNewSession({ title: "", description: "", type: "ordinary", scheduledStart: "", scheduledEnd: "", chairId: 0, secretaryId: 0, quorumRequired: 0 }); },
-    onError: (err: Error) => toast.error(err.message),
-  }) ?? { mutate: () => {}, isPending: false };
+  const createSession = trpc.admin.plenary.createSession.useMutation({
+    onSuccess: () => { toast.success("Session created"); setCreateOpen(false); sessionsQuery.refetch(); setNewSession({ title: "", description: "", type: "ordinary", scheduledStart: "", scheduledEnd: "", chairId: 0, secretaryId: 0, quorumRequired: 0 }); },
+    onError: (err: any) => toast.error(err.message),
+  });
 
   const sessions = (sessionsQuery.data ?? []) as any[];
   const resolutions = (resolutionsQuery.data ?? []) as any[];

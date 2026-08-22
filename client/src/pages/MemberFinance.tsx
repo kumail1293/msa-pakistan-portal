@@ -21,9 +21,9 @@ export default function MemberFinance() {
   const [expenseCategory, setExpenseCategory] = useState("");
   const [expenseDescription, setExpenseDescription] = useState("");
 
-  const summaryQuery = (trpc as any).finance?.mySummary?.useQuery?.() ?? { data: null, isLoading: false };
-  const expensesQuery = (trpc as any).finance?.myExpenses?.useQuery?.() ?? { data: [], isLoading: false };
-  const submitExpense = (trpc as any).finance?.submitExpense?.useMutation?.({
+  const summaryQuery = trpc.finance.mySummary.useQuery();
+  const expensesQuery = trpc.finance.myExpenses.useQuery();
+  const submitExpense = trpc.finance.submitExpense.useMutation({
     onSuccess: () => {
       toast.success("Expense claim submitted!");
       setShowForm(false);
@@ -31,10 +31,10 @@ export default function MemberFinance() {
       setExpenseAmount("");
       setExpenseCategory("");
       setExpenseDescription("");
-      expensesQuery.refetch?.();
+      expensesQuery.refetch();
     },
-    onError: (err: Error) => toast.error(err.message || "Could not submit expense."),
-  }) ?? { mutate: () => {}, isPending: false };
+    onError: (err: any) => toast.error(err.message || "Could not submit expense."),
+  });
 
   const summary = summaryQuery.data as any;
   const expenses = (expensesQuery.data ?? []) as any[];
@@ -306,8 +306,7 @@ export default function MemberFinance() {
                   onClick={handleSubmitExpense}
                   disabled={!expenseTitle.trim() || !expenseAmount || submitExpense.isPending}
                   className="msap-primary-action w-full text-white disabled:opacity-50"
-                >
-                  {submitExpense.isPending ? "Submitting..." : "Submit Expense Claim"}
+                >                    {submitExpense.isPending ? "Submitting..." : "Submit Expense Claim"}
                 </Button>
               </CardContent>
             </Card>

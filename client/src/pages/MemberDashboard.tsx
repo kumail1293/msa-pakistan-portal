@@ -6,6 +6,7 @@ import {
   Award,
   BookOpen,
   Building2,
+  Calendar,
   Download,
   ExternalLink,
   FileText,
@@ -241,24 +242,36 @@ export default function MemberDashboard() {
         </section>
 
         {/* ===== Quick links ===== */}
-        <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {[
-            { label: "Opportunities", desc: "Explore exclusive activities", icon: <Award className="h-5 w-5" />, to: "/opportunities" },
-            { label: "Voting", desc: "Participate in MSAP votes", icon: <Users className="h-5 w-5" />, to: "/voting" },
-            { label: "CV Maker", desc: "Build your professional CV", icon: <BookOpen className="h-5 w-5" />, to: "/cv-maker" },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => navigate(item.to)}
-              className="msap-card msap-card-hover group p-5 text-left"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#E7F4F0] text-[#106E5B] transition-colors group-hover:bg-[#138A73] group-hover:text-white">
-                {item.icon}
-              </div>
-              <h5 className="mt-3 font-semibold text-[#1B355E]">{item.label}</h5>
-              <p className="mt-0.5 text-xs text-[#66788D]">{item.desc}</p>
-            </button>
-          ))}
+        <section className="mt-10">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#1B355E]">
+            <Award className="h-5 w-5 text-[#138A73]" /> Quick Access
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              { label: "Activities", desc: "View & join activities", icon: <Calendar className="h-5 w-5" />, to: "/activities" },
+              { label: "Events", desc: "Browse upcoming events", icon: <Calendar className="h-5 w-5" />, to: "/events" },
+              { label: "Elections", desc: "Vote in elections", icon: <Users className="h-5 w-5" />, to: "/elections" },
+              { label: "Finance", desc: "Expenses & claims", icon: <Wallet className="h-5 w-5" />, to: "/finance" },
+              { label: "NEF/NRF", desc: "Activity enrollment", icon: <FileText className="h-5 w-5" />, to: "/nef-nrf" },
+              { label: "Plenary", desc: "Sessions & resolutions", icon: <BookOpen className="h-5 w-5" />, to: "/plenary" },
+              { label: "Communications", desc: "Announcements", icon: <Mail className="h-5 w-5" />, to: "/communications" },
+              { label: "Documents", desc: "Public documents", icon: <FileText className="h-5 w-5" />, to: "/documents" },
+              { label: "Directory", desc: "Find members", icon: <Users className="h-5 w-5" />, to: "/directory" },
+              { label: "Settings", desc: "Account preferences", icon: <GraduationCap className="h-5 w-5" />, to: "/settings" },
+            ].map((item) => (
+              <button
+                key={item.label}
+                onClick={() => navigate(item.to)}
+                className="msap-card msap-card-hover group p-4 text-left"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#E7F4F0] text-[#106E5B] transition-colors group-hover:bg-[#138A73] group-hover:text-white">
+                  {item.icon}
+                </div>
+                <h5 className="mt-3 font-semibold text-[#1B355E] text-sm">{item.label}</h5>
+                <p className="mt-0.5 text-xs text-[#66788D]">{item.desc}</p>
+              </button>
+            ))}
+          </div>
         </section>
       </main>
     </div>

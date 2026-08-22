@@ -32,6 +32,7 @@ const MODULE_CARDS: {
   path: string;
   icon: typeof LayoutDashboard;
   accent: string;
+  bylawRef?: string;
 }[] = [
   {
     module: "dashboard",
@@ -41,18 +42,12 @@ const MODULE_CARDS: {
     accent: "from-[#1B355E] to-[#294A78]",
   },
   {
-    module: "cards",
-    title: "Card Issuance Queue",
-    path: "/admin/cards",
-    icon: IdCard,
-    accent: "from-[#106E5B] to-[#138A73]",
-  },
-  {
     module: "activities",
     title: "Activities",
     path: "/admin/activities",
     icon: Calendar,
     accent: "from-emerald-500 to-emerald-600",
+    bylawRef: "§61-70",
   },
   {
     module: "events",
@@ -60,6 +55,7 @@ const MODULE_CARDS: {
     path: "/admin/events",
     icon: Calendar,
     accent: "from-blue-500 to-blue-600",
+    bylawRef: "§78-82",
   },
   {
     module: "elections",
@@ -67,6 +63,7 @@ const MODULE_CARDS: {
     path: "/admin/elections",
     icon: Vote,
     accent: "from-indigo-500 to-indigo-600",
+    bylawRef: "§13",
   },
   {
     module: "finance",
@@ -74,6 +71,7 @@ const MODULE_CARDS: {
     path: "/admin/finance",
     icon: DollarSign,
     accent: "from-amber-500 to-amber-600",
+    bylawRef: "§15",
   },
   {
     module: "documents",
@@ -81,6 +79,7 @@ const MODULE_CARDS: {
     path: "/admin/documents",
     icon: FileText,
     accent: "from-orange-500 to-orange-600",
+    bylawRef: "§14, §17",
   },
   {
     module: "communications",
@@ -88,6 +87,7 @@ const MODULE_CARDS: {
     path: "/admin/communications",
     icon: Megaphone,
     accent: "from-cyan-500 to-cyan-600",
+    bylawRef: "§14",
   },
   {
     module: "plenary",
@@ -95,6 +95,7 @@ const MODULE_CARDS: {
     path: "/admin/plenary",
     icon: Gavel,
     accent: "from-pink-500 to-pink-600",
+    bylawRef: "§6, §8",
   },
   {
     module: "nef-nrf",
@@ -102,13 +103,14 @@ const MODULE_CARDS: {
     path: "/admin/nef-nrf",
     icon: Coins,
     accent: "from-violet-500 to-violet-600",
+    bylawRef: "§16",
   },
   {
-    module: "config",
-    title: "System Configuration",
-    path: "/admin/config",
-    icon: Settings,
-    accent: "from-[#7A5C1E] to-[#A67C2E]",
+    module: "cards",
+    title: "Card Issuance Queue",
+    path: "/admin/cards",
+    icon: IdCard,
+    accent: "from-[#106E5B] to-[#138A73]",
   },
   {
     module: "lifecycle",
@@ -119,9 +121,16 @@ const MODULE_CARDS: {
   },
   {
     module: "config",
+    title: "System Configuration",
+    path: "/admin/config",
+    icon: Settings,
+    accent: "from-[#7A5C1E] to-[#A67C2E]",
+  },
+  {
+    module: "config",
     title: "Governance",
     path: "/admin/governance",
-    icon: Scale,
+    icon: Gavel,
     accent: "from-teal-500 to-teal-600",
   },
   {
@@ -223,6 +232,9 @@ export default function OfficialHome() {
                     <p className="mt-0.5 text-[11px] leading-4 text-[#5D7086] line-clamp-2">
                       {OFFICIAL_MODULE_DESCRIPTIONS[card.module]}
                     </p>
+                    {card.bylawRef && (
+                      <span className="mt-1 inline-block rounded bg-[#E7F4F0] px-1.5 py-0.5 text-[9px] font-bold text-[#106E5B]">{card.bylawRef}</span>
+                    )}
                   </div>
                 </div>
                 <span className="mt-3 inline-flex items-center text-[11px] font-bold text-[#106E5B] opacity-0 transition-opacity group-hover:opacity-100">
