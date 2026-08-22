@@ -1005,6 +1005,142 @@ export const appRouter = router({
       }),
   }),
 
+  // ============ MEMBER-FACING MODULE ROUTES ============
+  activities: router({
+    list: protectedProcedure.input(z.object({ type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+      const { activitiesEngine } = await import("./config/activitiesEngine");
+      return activitiesEngine.list({ ...input, status: "active" });
+    }),
+    get: protectedProcedure.input(z.object({ activityId: z.number() })).query(async ({ input }) => {
+      const { activitiesEngine } = await import("./config/activitiesEngine");
+      return activitiesEngine.get(input.activityId);
+    }),
+    register: protectedProcedure.input(z.object({ activityId: z.number() })).mutation(async ({ ctx, input }) => {
+      const { activitiesEngine } = await import("./config/activitiesEngine");
+      return activitiesEngine.registerParticipant(input.activityId, ctx.user!.id);
+    }),
+    myRegistrations: protectedProcedure.query(async ({ ctx }) => {
+      const { activitiesEngine } = await import("./config/activitiesEngine");
+      return activitiesEngine.getMyRegistrations(ctx.user!.id);
+    }),
+  }),
+
+  events: router({
+    list: protectedProcedure.input(z.object({ type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+      const { eventsEngine } = await import("./config/eventsEngine");
+      return eventsEngine.list({ ...input, status: "upcoming" });
+    }),
+    get: protectedProcedure.input(z.object({ eventId: z.number() })).query(async ({ input }) => {
+      const { eventsEngine } = await import("./config/eventsEngine");
+      return eventsEngine.get(input.eventId);
+    }),
+    register: protectedProcedure.input(z.object({ eventId: z.number() })).mutation(async ({ ctx, input }) => {
+      const { eventsEngine } = await import("./config/eventsEngine");
+      return eventsEngine.registerParticipant(input.eventId, ctx.user!.id);
+    }),
+    myRegistrations: protectedProcedure.query(async ({ ctx }) => {
+      const { eventsEngine } = await import("./config/eventsEngine");
+      return eventsEngine.getMyRegistrations(ctx.user!.id);
+    }),
+  }),
+
+  elections: router({
+    list: protectedProcedure.input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+      const { listElections } = await import("./config/electionsEngine");
+      return listElections(input ?? {});
+    }),
+    get: protectedProcedure.input(z.object({ electionId: z.number() })).query(async ({ input }) => {
+      const { getElection } = await import("./config/electionsEngine");
+      return getElection(input.electionId);
+    }),
+    castBallot: protectedProcedure.input(z.object({ electionId: z.number(), ballotData: z.any() })).mutation(async ({ ctx, input }) => {
+      const { castBallot } = await import("./config/electionsEngine");
+      return castBallot({ electionId: input.electionId, voterId: ctx.user!.id, ballotData: input.ballotData });
+    }),
+    myVotes: protectedProcedure.query(async ({ ctx }) => {
+      const { getMyVotes } = await import("./config/electionsEngine");
+      return getMyVotes(ctx.user!.id);
+    }),
+  }),
+
+  finance: router({
+    mySummary: protectedProcedure.query(async ({ ctx }) => {
+      const { financeEngine } = await import("./config/financeEngine");
+      return financeEngine.getMemberSummary(ctx.user!.id);
+    }),
+    myExpenses: protectedProcedure.query(async ({ ctx }) => {
+      const { financeEngine } = await import("./config/financeEngine");
+      return financeEngine.listExpenses({ memberId: ctx.user!.id });
+    }),
+    submitExpense: protectedProcedure.input(z.object({ title: z.string(), amount: z.number(), category: z.string().optional(), description: z.string().optional(), receiptUrl: z.string().optional() })).mutation(async ({ ctx, input }) => {
+      const { financeEngine } = await import("./config/financeEngine");
+      return financeEngine.submitExpense({ ...input, totalAmount: input.amount, userId: ctx.user!.id });
+    }),
+  }),
+
+  communications: router({
+    announcements: protectedProcedure.input(z.object({ limit: z.number().optional() }).optional()).query(async ({ input }) => {
+      const { communicationsEngine } = await import("./config/communicationsEngine");
+      return communicationsEngine.listAnnouncements({ ...input, status: "published" });
+    }),
+    preferences: protectedProcedure.query(async ({ ctx }) => {
+      const { communicationsEngine } = await import("./config/communicationsEngine");
+      return communicationsEngine.getMemberPreferences(ctx.user!.id);
+    }),
+    updatePreferences: protectedProcedure.input(z.object({ emailEnabled: z.boolean().optional(), smsEnabled: z.boolean().optional(), pushEnabled: z.boolean().optional(), categories: z.array(z.string()).optional() })).mutation(async ({ ctx, input }) => {
+      const { communicationsEngine } = await import("./config/communicationsEngine");
+      return communicationsEngine.updateMemberPreferences(ctx.user!.id, input);
+    }),
+  }),
+
+  plenary: router({
+    list: protectedProcedure.input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+      const { plenaryEngine } = await import("./config/plenaryEngine");
+      return plenaryEngine.listSessions(input ?? {});
+    }),
+    get: protectedProcedure.input(z.object({ sessionId: z.number() })).query(async ({ input }) => {
+      const { plenaryEngine } = await import("./config/plenaryEngine");
+      return plenaryEngine.getSession(input.sessionId);
+    }),
+    resolutions: protectedProcedure.input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+      const { plenaryEngine } = await import("./config/plenaryEngine");
+      return plenaryEngine.listResolutions(input ?? {});
+    }),
+  }),
+
+  nefNrf: router({
+    // ── NEF (National Enrollment Form) — member routes §16.1-16.3 ──
+    nefSubmissions: protectedProcedure.input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+      const { nefNrfEngine } = await import("./config/nefNrfEngine");
+      return nefNrfEngine.listNefSubmissions(input ?? {});
+    }),
+    getNefSubmission: protectedProcedure.input(z.object({ activityId: z.number() })).query(async ({ input }) => {
+      const { nefNrfEngine } = await import("./config/nefNrfEngine");
+      return nefNrfEngine.getNefSubmission(input.activityId);
+    }),
+    submitNef: protectedProcedure.input(z.object({ activityId: z.number().optional(), title: z.string(), description: z.string(), activityLevel: z.enum(["local", "national", "regional", "international"]), standingCommittee: z.string().optional(), coordinators: z.array(z.number()).optional(), startDate: z.date().optional(), endDate: z.date().optional(), venue: z.string().optional(), city: z.string().optional(), mode: z.enum(["in_person", "online", "hybrid"]).optional(), maxParticipants: z.number().optional(), budget: z.number().optional() })).mutation(async ({ ctx, input }) => {
+      const { nefNrfEngine } = await import("./config/nefNrfEngine");
+      return nefNrfEngine.submitNef({ ...input, submittedById: ctx.user!.id });
+    }),
+    myNefSubmissions: protectedProcedure.query(async ({ ctx }) => {
+      const { nefNrfEngine } = await import("./config/nefNrfEngine");
+      return nefNrfEngine.getMyNefSubmissions(ctx.user!.id);
+    }),
+    // ── NRF (National Report Form) — member routes §16.11-16.12 ──
+    submitNrf: protectedProcedure.input(z.object({ activityId: z.number(), content: z.object({ summary: z.string(), participants: z.number().optional(), impact: z.string().optional(), photos: z.array(z.string()).optional(), feedback: z.string().optional(), outcomes: z.string().optional(), budgetActual: z.number().optional(), challenges: z.string().optional(), recommendations: z.string().optional() }) })).mutation(async ({ ctx, input }) => {
+      const { nefNrfEngine } = await import("./config/nefNrfEngine");
+      return nefNrfEngine.submitNrf({ ...input, submittedById: ctx.user!.id });
+    }),
+    myNrfReports: protectedProcedure.query(async ({ ctx }) => {
+      const { nefNrfEngine } = await import("./config/nefNrfEngine");
+      return nefNrfEngine.getMyNrfReports(ctx.user!.id);
+    }),
+    mySummary: protectedProcedure.query(async ({ ctx }) => {
+      const { nefNrfEngine } = await import("./config/nefNrfEngine");
+      return nefNrfEngine.getMemberSummary(ctx.user!.id);
+    }),
+  }),
+
   // ============ ADMIN ROUTES ============
   admin: router({
     // ===== Officials management (super admin only) =====
@@ -1682,6 +1818,233 @@ export const appRouter = router({
         );
         return { success: true, emailBranding: await getEmailBranding() };
       }),
+    // ============ ADMIN MODULE ROUTES ============
+    activities: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.getStats();
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string(), category: z.string().optional(), startDate: z.date().optional(), endDate: z.date().optional(), venue: z.string().optional(), city: z.string().optional(), mode: z.enum(["in_person", "online", "hybrid"]).optional(), budget: z.number().optional(), maxParticipants: z.number().optional() })).mutation(async ({ ctx, input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.create({ ...input, organizedBy: ctx.user?.id, createdBy: ctx.user?.id });
+      }),
+      update: officialModuleProcedure("config").input(z.object({ id: z.number(), updates: z.record(z.string(), z.any()) })).mutation(async ({ input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.update(input.id, input.updates);
+      }),
+      delete: officialModuleProcedure("config").input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.delete(input.id);
+      }),
+      updateStatus: officialModuleProcedure("config").input(z.object({ id: z.number(), status: z.string() })).mutation(async ({ input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.updateStatus(input.id, input.status);
+      }),
+      get: officialModuleProcedure("config").input(z.object({ id: z.number() })).query(async ({ input }) => {
+        const { activitiesEngine } = await import("./config/activitiesEngine");
+        return activitiesEngine.get(input.id);
+      }),
+    }),
+
+    documents: router({
+      list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.getStats();
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string(), category: z.string().optional(), content: z.string().optional(), visibility: z.string().optional(), tags: z.array(z.string()).optional() })).mutation(async ({ ctx, input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+      update: officialModuleProcedure("config").input(z.object({ id: z.number(), updates: z.record(z.string(), z.any()) })).mutation(async ({ input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.update(input.id, input.updates);
+      }),
+      delete: officialModuleProcedure("config").input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.delete(input.id);
+      }),
+      transition: officialModuleProcedure("config").input(z.object({ id: z.number(), status: z.string() })).mutation(async ({ ctx, input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.transition(input.id, input.status, ctx.user!.id);
+      }),
+      get: officialModuleProcedure("config").input(z.object({ id: z.number() })).query(async ({ input }) => {
+        const { documentsEngine } = await import("./config/documentsEngine");
+        return documentsEngine.get(input.id);
+      }),
+    }),
+
+    events: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.list(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.getStats();
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string().optional(), startDate: z.date(), endDate: z.date(), venue: z.string().optional(), city: z.string().optional(), mode: z.string().optional(), maxCapacity: z.number().optional(), fee: z.number().optional() })).mutation(async ({ ctx, input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+      update: officialModuleProcedure("config").input(z.object({ id: z.number(), updates: z.record(z.string(), z.any()) })).mutation(async ({ input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.update(input.id, input.updates);
+      }),
+      delete: officialModuleProcedure("config").input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.delete(input.id);
+      }),
+      updateStatus: officialModuleProcedure("config").input(z.object({ id: z.number(), status: z.string() })).mutation(async ({ input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.updateStatus(input.id, input.status);
+      }),
+      get: officialModuleProcedure("config").input(z.object({ id: z.number() })).query(async ({ input }) => {
+        const { eventsEngine } = await import("./config/eventsEngine");
+        return eventsEngine.get(input.id);
+      }),
+    }),
+
+    finance: router({
+      summary: officialModuleProcedure("config").query(async () => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.getSummary();
+      }),
+      transactions: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.listTransactions(input ?? {});
+      }),
+      expenses: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.listExpenses(input ?? {});
+      }),
+      createBudget: officialModuleProcedure("config").input(z.object({ name: z.string(), fiscalYear: z.string(), totalBudget: z.number() })).mutation(async ({ ctx, input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.createBudget({ ...input, createdBy: ctx.user?.id });
+      }),
+      createTransaction: officialModuleProcedure("config").input(z.object({ type: z.string(), amount: z.number(), description: z.string().optional(), category: z.string().optional() })).mutation(async ({ ctx, input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.createTransaction({ ...input, createdBy: ctx.user?.id });
+      }),
+      reviewExpense: officialModuleProcedure("config").input(z.object({ claimId: z.number(), decision: z.enum(["approved", "rejected"]), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
+        const { financeEngine } = await import("./config/financeEngine");
+        return financeEngine.reviewExpense(input.claimId, input.decision, ctx.user!.id, input.notes);
+      }),
+    }),
+
+    communications: router({
+      announcements: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.listAnnouncements(input ?? {});
+      }),
+      templates: officialModuleProcedure("config").query(async () => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.listTemplates();
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.getStats();
+      }),
+      createAnnouncement: officialModuleProcedure("config").input(z.object({ title: z.string(), content: z.string(), type: z.string().optional(), priority: z.string().optional(), targetAllMembers: z.boolean().optional() })).mutation(async ({ ctx, input }) => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.createAnnouncement({ ...input, createdBy: ctx.user?.id });
+      }),
+      publishAnnouncement: officialModuleProcedure("config").input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+        const { communicationsEngine } = await import("./config/communicationsEngine");
+        return communicationsEngine.publishAnnouncement(input.id, ctx.user!.id);
+      }),
+    }),
+
+    elections: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), type: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { listElections } = await import("./config/electionsEngine");
+        return listElections(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { getElectionStats } = await import("./config/electionsEngine");
+        return getElectionStats();
+      }),
+      get: officialModuleProcedure("config").input(z.object({ electionId: z.number() })).query(async ({ input }) => {
+        const { getElection } = await import("./config/electionsEngine");
+        return getElection(input.electionId);
+      }),
+      create: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.enum(["presidential", "board", "national_team", "regional", "chapter", "committee", "referendum"]), votingStart: z.date(), votingEnd: z.date(), nominationsStart: z.date().optional(), nominationsEnd: z.date().optional(), votingMethod: z.string().optional(), requireEndorsement: z.boolean().optional(), disputePeriodDays: z.number().optional() })).mutation(async ({ ctx, input }) => {
+        const { createElection } = await import("./config/electionsEngine");
+        return createElection({ title: input.title, description: input.description, type: input.type, votingMethod: { type: (input.votingMethod ?? "plurality") as any }, votingStart: input.votingStart, votingEnd: input.votingEnd, nominationsStart: input.nominationsStart, nominationsEnd: input.nominationsEnd, resultConfig: { disputePeriodDays: input.disputePeriodDays } }, ctx.user?.id);
+      }),
+    }),
+
+    plenary: router({
+      listSessions: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { plenaryEngine } = await import("./config/plenaryEngine");
+        return plenaryEngine.listSessions(input ?? {});
+      }),
+      getSession: officialModuleProcedure("config").input(z.object({ sessionId: z.number() })).query(async ({ input }) => {
+        const { plenaryEngine } = await import("./config/plenaryEngine");
+        return plenaryEngine.getSession(input.sessionId);
+      }),
+      createSession: officialModuleProcedure("config").input(z.object({ title: z.string(), description: z.string().optional(), type: z.string().optional(), scheduledStart: z.date(), scheduledEnd: z.date(), chairId: z.number(), secretaryId: z.number() })).mutation(async ({ ctx, input }) => {
+        const { plenaryEngine } = await import("./config/plenaryEngine");
+        return plenaryEngine.createSession({ ...input, createdById: ctx.user?.id });
+      }),
+      listResolutions: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { plenaryEngine } = await import("./config/plenaryEngine");
+        return plenaryEngine.listResolutions(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { plenaryEngine } = await import("./config/plenaryEngine");
+        return plenaryEngine.getStats();
+      }),
+    }),
+
+    nefNrf: router({
+      // ── NEF (National Enrollment Form) — §16.1-16.3 ──
+      listNefSubmissions: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), activityLevel: z.string().optional(), standingCommittee: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.listNefSubmissions(input ?? {});
+      }),
+      getNefSubmission: officialModuleProcedure("config").input(z.object({ activityId: z.number() })).query(async ({ input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.getNefSubmission(input.activityId);
+      }),
+      reviewNef: officialModuleProcedure("config").input(z.object({ activityId: z.number(), decision: z.enum(["accepted", "rejected", "revision_needed"]), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.reviewNef(input.activityId, input.decision, ctx.user!.id, input.notes);
+      }),
+      // ── NRF (National Report Form) — §16.11-16.12 ──
+      listNrfReports: officialModuleProcedure("config").input(z.object({ activityId: z.number().optional(), status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.listNrfReports(input ?? {});
+      }),
+      getNrfReport: officialModuleProcedure("config").input(z.object({ reportId: z.number() })).query(async ({ input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.getNrfReport(input.reportId);
+      }),
+      approveNrf: officialModuleProcedure("config").input(z.object({ reportId: z.number(), activityId: z.number() })).mutation(async ({ ctx, input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.approveNrf(input.reportId, input.activityId, ctx.user!.id);
+      }),
+      issueCertificate: officialModuleProcedure("config").input(z.object({ activityId: z.number() })).mutation(async ({ input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.issueCertificate(input.activityId);
+      }),
+      approveBudget: officialModuleProcedure("config").input(z.object({ activityId: z.number() })).mutation(async ({ ctx, input }) => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.approveBudget(input.activityId, ctx.user!.id);
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { nefNrfEngine } = await import("./config/nefNrfEngine");
+        return nefNrfEngine.getStats();
+      }),
+    }),
+
   }),
 
   // ============ ENTERPRISE ADMIN ROUTES ============

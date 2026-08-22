@@ -132,8 +132,8 @@ export default function AdminAudit() {
   const hasMore = events.length === filters.limit;
 
   return (
-    <div className="py-8">
-      <div className="mx-auto max-w-6xl">
+    <div>
+      <div className="">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1B355E] mb-2 flex items-center gap-3">

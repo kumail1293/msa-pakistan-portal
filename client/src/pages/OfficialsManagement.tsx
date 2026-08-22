@@ -180,7 +180,7 @@ export default function OfficialsManagement() {
   const items = officials.data ?? [];
 
   return (
-    <div className="py-8">
+    <div>
       {/* Header */}
       <div className="relative overflow-hidden rounded-3xl bg-[linear-gradient(135deg,#0E2547_0%,#1B355E_55%,#294A78_100%)] px-6 py-8 text-white shadow-[0_24px_60px_-32px_rgba(27,53,94,.65)] sm:px-8">
         <div className="pointer-events-none absolute -right-14 -top-16 h-48 w-48 rounded-full border-[24px] border-white/10" />

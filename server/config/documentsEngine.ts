@@ -86,6 +86,38 @@ export const documentsEngine = {
     } catch { return {}; }
   },
 
+  /** Update a document. */
+  update: async (docId: number, updates: Record<string, any>): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.update(documents).set({ ...updates, updatedAt: new Date() }).where(eq(documents.id, docId));
+      return true;
+    } catch { return false; }
+  },
+
+  /** Delete a document. */
+  delete: async (docId: number): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.delete(documentVersions).where(eq(documentVersions.documentId, docId));
+      await db.delete(documents).where(eq(documents.id, docId));
+      await logAuditEvent({ action: "document.deleted", entityType: "document", entityId: docId });
+      return true;
+    } catch { return false; }
+  },
+
+  /** Get a single document. */
+  get: async (docId: number): Promise<any | null> => {
+    const db = getDb();
+    if (!db) return null;
+    try {
+      const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1);
+      return doc ?? null;
+    } catch { return null; }
+  },
+
   /** Search documents. */
   search: async (query: string): Promise<any[]> => {
     const db = getDb();

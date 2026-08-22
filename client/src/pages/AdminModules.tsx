@@ -82,8 +82,8 @@ export default function AdminModules() {
   const comm = commStats.data;
 
   return (
-    <div className="py-8">
-      <div className="mx-auto max-w-7xl">
+    <div>
+      <div className="">
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1B355E] mb-2 flex items-center gap-3">
             <Activity className="h-8 w-8 text-[#106E5B]" />

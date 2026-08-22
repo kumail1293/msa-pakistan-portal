@@ -117,13 +117,55 @@ export const financeEngine = {
   },
 
   /** List expense claims. */
-  listExpenses: async (options: { status?: string; limit?: number } = {}): Promise<any[]> => {
+  listExpenses: async (options: { status?: string; memberId?: number; limit?: number } = {}): Promise<any[]> => {
     const db = getDb();
     if (!db) return [];
     try {
-      const where = options.status ? eq(expenseClaims.status, options.status as any) : undefined;
+      const conditions = [];
+      if (options.status) conditions.push(eq(expenseClaims.status, options.status as any));
+      if (options.memberId) conditions.push(eq(expenseClaims.userId, options.memberId));
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
       return db.select().from(expenseClaims).where(where).orderBy(desc(expenseClaims.createdAt)).limit(options.limit ?? 50);
     } catch { return []; }
+  },
+
+  /** Update a transaction. */
+  updateTransaction: async (txId: number, updates: Record<string, any>): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.update(financeTransactions).set({ ...updates, updatedAt: new Date() }).where(eq(financeTransactions.id, txId));
+      return true;
+    } catch { return false; }
+  },
+
+  /** Delete a transaction. */
+  deleteTransaction: async (txId: number): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.delete(financeTransactions).where(eq(financeTransactions.id, txId));
+      return true;
+    } catch { return false; }
+  },
+
+  /** Get member-specific financial summary. */
+  getMemberSummary: async (userId: number): Promise<{ totalExpenses: number; pendingExpenses: number; approvedExpenses: number; expenseCount: number }> => {
+    const db = getDb();
+    if (!db) return { totalExpenses: 0, pendingExpenses: 0, approvedExpenses: 0, expenseCount: 0 };
+    try {
+      const userFilter = eq(expenseClaims.userId, userId);
+      const [total] = await db.select({ sum: sql<number>`COALESCE(SUM(${expenseClaims.totalAmount}), 0)` }).from(expenseClaims).where(userFilter);
+      const [pending] = await db.select({ count: sql<number>`count(*)` }).from(expenseClaims).where(and(userFilter, eq(expenseClaims.status, "submitted")));
+      const [approved] = await db.select({ count: sql<number>`count(*)` }).from(expenseClaims).where(and(userFilter, eq(expenseClaims.status, "approved")));
+      const [all] = await db.select({ count: sql<number>`count(*)` }).from(expenseClaims).where(userFilter);
+      return {
+        totalExpenses: Number(total?.sum ?? 0),
+        pendingExpenses: pending?.count ?? 0,
+        approvedExpenses: approved?.count ?? 0,
+        expenseCount: all?.count ?? 0,
+      };
+    } catch { return { totalExpenses: 0, pendingExpenses: 0, approvedExpenses: 0, expenseCount: 0 }; }
   },
 };
 

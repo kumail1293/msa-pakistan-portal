@@ -34,12 +34,25 @@ export const activities = mysqlTable("activities", {
   type: varchar("type", { length: 50 }).notNull(), // workshop, seminar, community_service, campaign, training, conference, custom
   category: varchar("category", { length: 50 }), // nef, nrf, regular, special
 
-  // Status lifecycle: proposal → review → approval → preparation → registration → execution → reporting → evaluation → closure
+  // Status lifecycle: draft → submitted (NEF) → under_review → approved → preparation → registration_open → in_progress → reporting (NRF) → evaluation → completed
   status: mysqlEnum("status", [
-    "draft", "submitted", "under_review", "approved", "preparation",
-    "registration_open", "registration_closed", "in_progress",
+    "draft", "submitted", "under_review", "approved", "rejected",
+    "preparation", "registration_open", "registration_closed", "in_progress",
     "reporting", "evaluation", "completed", "cancelled"
   ]).default("draft").notNull(),
+
+  // Activity Levels per bylaws §16.6-16.9
+  // local = 1 LC or ≤2 LC collaboration
+  // national = EBTO member involved, ≥3 LCs, or national team proposal
+  // regional = 2 NMOs in same region
+  // international = organizations in different regions
+  activityLevel: mysqlEnum("activityLevel", ["local", "national", "regional", "international"]).default("local"),
+
+  // Standing Committee per bylaws §10.2
+  standingCommittee: varchar("standingCommittee", { length: 50 }), // SCOPH, SCORA, SCOME, SCORP, SCOPE, SCORE, or null
+
+  // Activity Coordinators — max 3 per bylaws §16.5
+  coordinators: json("coordinators").$type<number[]>(), // array of user IDs
 
   // Timing
   startDate: timestamp("startDate"),
@@ -52,9 +65,11 @@ export const activities = mysqlTable("activities", {
   city: varchar("city", { length: 100 }),
   mode: mysqlEnum("mode", ["in_person", "online", "hybrid"]).default("in_person"),
 
-  // Budget
+  // Budget — per bylaws §16.14, budget approval requires VPA + VPF + President
   budget: int("budget"), // PKR
   actualCost: int("actualCost"),
+  budgetApprovedBy: int("budgetApprovedBy"), // VPF user ID
+  budgetApprovedAt: timestamp("budgetApprovedAt"),
   fundingSource: varchar("fundingSource", { length: 100 }),
 
   // Capacity
@@ -63,9 +78,25 @@ export const activities = mysqlTable("activities", {
   waitlistEnabled: boolean("waitlistEnabled").default(false),
 
   // People
-  organizedBy: int("organizedBy"), // user ID
-  approvedBy: int("approvedBy"),
+  organizedBy: int("organizedBy"), // user ID (local VPA who filled NEF)
+  approvedBy: int("approvedBy"), // VPA who approved
   coordinatorId: int("coordinatorId"),
+
+  // NEF tracking (§16.1-16.3)
+  nefSubmittedAt: timestamp("nefSubmittedAt"), // when NEF was submitted
+  nefSubmittedBy: int("nefSubmittedBy"), // local VPA who submitted
+  nefApprovedAt: timestamp("nefApprovedAt"), // when VPA approved
+  nefDecision: varchar("nefDecision", { length: 50 }), // accepted, rejected, revision_needed
+  nefDecisionNotes: text("nefDecisionNotes"),
+  nefDecisionAt: timestamp("nefDecisionAt"),
+  // VPA must decide within 14 days per §11.5.15
+
+  // NRF tracking (§16.11-16.13)
+  nrfSubmittedAt: timestamp("nrfSubmittedAt"), // when NRF was submitted
+  nrfSubmittedBy: int("nrfSubmittedBy"), // local VPA who submitted
+  nrfApprovedAt: timestamp("nrfApprovedAt"), // when VPA approved NRF
+  certificateIssued: boolean("certificateIssued").default(false), // §16.10 — only after NRF approved
+  certificateIssuedAt: timestamp("certificateIssuedAt"),
 
   // Scoring
   impactScore: decimal("impactScore", { precision: 5, scale: 2 }),
@@ -542,3 +573,95 @@ export const searchIndex = mysqlTable("search_index", {
   visIdx: index("si_vis_idx").on(table.visibility),
   fulltextIdx: index("si_fulltext_idx").on(table.title, table.content),
 }));
+
+// ============================================================================
+// NEF/NRF MODULE (§71-74)
+// National Executive Fund (NEF) and National Research Fund (NRF)
+// ============================================================================
+
+// NEF/NRF Cycles — defines a funding round with deadlines and categories
+export const fundingCycles = mysqlTable("funding_cycles", {
+  id: int("id").autoincrement().primaryKey(),
+  organizationId: int("organizationId"),
+  name: varchar("name", { length: 255 }).notNull(),
+  fundType: mysqlEnum("fund_type", ["nef", "nrf"]).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["draft", "open", "submission_closed", "under_review", "decided", "closed"]).default("draft").notNull(),
+  submissionStart: timestamp("submissionStart").notNull(),
+  submissionEnd: timestamp("submissionEnd").notNull(),
+  reviewStart: timestamp("reviewStart"),
+  reviewEnd: timestamp("reviewEnd"),
+  totalBudget: decimal("totalBudget", { precision: 15, scale: 2 }),
+  maxPerGrant: decimal("maxPerGrant", { precision: 15, scale: 2 }),
+  categories: json("categories").$type<string[]>(),
+  eligibilityCriteria: json("eligibilityCriteria"),
+  scoringRubric: json("scoringRubric").$type<Array<{ criterion: string; weight: number; description: string }>>(),
+  requiredDocuments: json("requiredDocuments").$type<string[]>(),
+  metadata: json("metadata"),
+  createdById: int("createdById"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  orgIdx: index("fc_org_idx").on(table.organizationId),
+  fundTypeIdx: index("fc_fund_type_idx").on(table.fundType),
+  statusIdx: index("fc_status_idx").on(table.status),
+}));
+
+export type FundingCycle = typeof fundingCycles.$inferSelect;
+
+// Proposals — submitted by members/chapters for NEF or NRF funding
+export const fundingProposals = mysqlTable("funding_proposals", {
+  id: int("id").autoincrement().primaryKey(),
+  cycleId: int("cycleId").notNull(),
+  submittedById: int("submittedById").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  category: varchar("category", { length: 100 }),
+  requestedAmount: decimal("requestedAmount", { precision: 15, scale: 2 }).notNull(),
+  approvedAmount: decimal("approvedAmount", { precision: 15, scale: 2 }),
+  status: mysqlEnum("status", [
+    "draft", "submitted", "under_review", "scored", "shortlisted",
+    "approved", "rejected", "funded", "in_progress", "reporting",
+    "completed", "closed"
+  ]).default("draft").notNull(),
+  objectives: text("objectives"),
+  methodology: text("methodology"),
+  expectedOutcomes: text("expectedOutcomes"),
+  timeline: text("timeline"),
+  budget: json("budget").$type<Array<{ item: string; amount: number; justification: string }>>(),
+  attachments: json("attachments").$type<string[]>(),
+  scores: json("scores").$type<Array<{ reviewerId: number; criterion: string; score: number; comment: string }>>(),
+  totalScore: decimal("totalScore", { precision: 5, scale: 2 }),
+  chapterId: int("chapterId"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  cycleIdx: index("fp_cycle_idx").on(table.cycleId),
+  submitterIdx: index("fp_submitter_idx").on(table.submittedById),
+  statusIdx: index("fp_status_idx").on(table.status),
+}));
+
+export type FundingProposal = typeof fundingProposals.$inferSelect;
+
+// Grant Disbursements — tracks funding milestones for approved proposals
+export const grantDisbursements = mysqlTable("grant_disbursements", {
+  id: int("id").autoincrement().primaryKey(),
+  proposalId: int("proposalId").notNull(),
+  milestone: varchar("milestone", { length: 255 }).notNull(),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  status: mysqlEnum("status", ["pending", "disbursed", "held", "returned"]).default("pending"),
+  dueDate: timestamp("dueDate"),
+  disbursedAt: timestamp("disbursedAt"),
+  evidence: json("evidence").$type<string[]>(),
+  notes: text("notes"),
+  reviewedById: int("reviewedById"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  proposalIdx: index("gd_proposal_idx").on(table.proposalId),
+  statusIdx: index("gd_status_idx").on(table.status),
+}));
+
+export type GrantDisbursement = typeof grantDisbursements.$inferSelect;

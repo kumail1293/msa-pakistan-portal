@@ -125,8 +125,8 @@ export default function AdminCardQueue() {
   };
 
   return (
-    <div className="py-8">
-      <div className="mx-auto max-w-7xl">
+    <div>
+      <div className="">
         {/* Header */}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>

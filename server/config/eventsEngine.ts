@@ -110,6 +110,61 @@ export const eventsEngine = {
     }
   },
 
+  /** Get a single event by ID */
+  get: async (eventId: number): Promise<any | null> => {
+    const db = getDb();
+    if (!db) return null;
+    try {
+      const [event] = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
+      return event ?? null;
+    } catch { return null; }
+  },
+
+  /** Register a participant (wraps existing register with userId rename) */
+  registerParticipant: async (eventId: number, userId: number): Promise<{ success: boolean; waitlisted: boolean }> => {
+    return eventsEngine.register(eventId, userId);
+  },
+
+  /** Get registrations for a member */
+  getMyRegistrations: async (userId: number): Promise<any[]> => {
+    const db = getDb();
+    if (!db) return [];
+    try {
+      return db.select().from(eventRegistrations).where(eq(eventRegistrations.userId, userId)).orderBy(desc(eventRegistrations.createdAt));
+    } catch { return []; }
+  },
+
+  /** Update an event */
+  update: async (eventId: number, updates: Record<string, any>): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.update(events).set({ ...updates, updatedAt: new Date() }).where(eq(events.id, eventId));
+      return true;
+    } catch { return false; }
+  },
+
+  /** Delete an event */
+  delete: async (eventId: number): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.delete(eventRegistrations).where(eq(eventRegistrations.eventId, eventId));
+      await db.delete(events).where(eq(events.id, eventId));
+      return true;
+    } catch { return false; }
+  },
+
+  /** Update event status */
+  updateStatus: async (eventId: number, status: string): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.update(events).set({ status: status as any, updatedAt: new Date() }).where(eq(events.id, eventId));
+      return true;
+    } catch { return false; }
+  },
+
   /** Get event stats */
   getStats: async (): Promise<Record<string, number>> => {
     const db = getDb();

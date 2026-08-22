@@ -106,6 +106,18 @@ export const communicationsEngine = {
       return result;
     } catch { return { sent: 0, delivered: 0, failed: 0, queued: 0 }; }
   },
+
+  /** Get member notification preferences (in-memory default). */
+  getMemberPreferences: async (_userId: number): Promise<{ emailEnabled: boolean; smsEnabled: boolean; pushEnabled: boolean; categories: string[] }> => {
+    // TODO: persist per-member preferences in a notification_preferences table
+    return { emailEnabled: true, smsEnabled: false, pushEnabled: true, categories: ["general", "events", "activities"] };
+  },
+
+  /** Update member notification preferences. */
+  updateMemberPreferences: async (_userId: number, _prefs: { emailEnabled?: boolean; smsEnabled?: boolean; pushEnabled?: boolean; categories?: string[] }): Promise<{ success: boolean }> => {
+    // TODO: persist per-member preferences
+    return { success: true };
+  },
 };
 
 export default communicationsEngine;

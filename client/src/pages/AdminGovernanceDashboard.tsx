@@ -117,8 +117,8 @@ export default function AdminGovernanceDashboard() {
   const deadlines = deadlinesQuery.data ?? [];
 
   return (
-    <div className="py-8">
-      <div className="mx-auto max-w-7xl">
+    <div>
+      <div className="">
         {/* Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

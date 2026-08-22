@@ -17,81 +17,73 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   BarChart3,
   Calendar,
+  ChevronDown,
+  ChevronRight,
+  Coins,
+  DollarSign,
+  FileText,
   Flag,
+  Gavel,
   IdCard,
   LayoutDashboard,
   LogOut,
-  Scale,
+  Megaphone,
   ScrollText,
-  ShieldCheck,
+  Scale,
   Settings,
+  ShieldCheck,
   UserCog,
+  Vote,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 
-const NAV_ITEMS = [
-  { module: null, label: "Home", path: "/official", icon: LayoutDashboard },
+type NavItem = {
+  module: string | null;
+  label: string;
+  path: string;
+  icon: typeof LayoutDashboard;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
   {
-    module: "recruitment",
-    label: "Recruitment",
-    path: "/admin/dashboard",
-    icon: BarChart3,
+    label: "Overview",
+    items: [
+      { module: null, label: "Home", path: "/official", icon: LayoutDashboard },
+      { module: "recruitment", label: "Recruitment", path: "/admin/dashboard", icon: BarChart3 },
+      { module: "card-queue", label: "Card Queue", path: "/admin/cards", icon: IdCard },
+    ],
   },
   {
-    module: "card-queue",
-    label: "Card Queue",
-    path: "/admin/cards",
-    icon: IdCard,
-  },
-  { module: "config", label: "Config", path: "/admin/config", icon: Settings },
-  {
-    module: "config",
-    label: "Governance",
-    path: "/admin/governance",
-    icon: Scale,
-  },
-  {
-    module: "config",
     label: "Modules",
-    path: "/admin/modules",
-    icon: Settings,
+    items: [
+      { module: "config", label: "Activities", path: "/admin/activities", icon: Calendar },
+      { module: "config", label: "Events", path: "/admin/events", icon: Calendar },
+      { module: "config", label: "Elections", path: "/admin/elections", icon: Vote },
+      { module: "config", label: "Finance", path: "/admin/finance", icon: DollarSign },
+      { module: "config", label: "Documents", path: "/admin/documents", icon: FileText },
+      { module: "config", label: "Communications", path: "/admin/communications", icon: Megaphone },
+      { module: "config", label: "Plenary", path: "/admin/plenary", icon: Gavel },
+      { module: "config", label: "NEF/NRF", path: "/admin/nef-nrf", icon: Coins },
+    ],
   },
   {
-    module: "config",
-    label: "Config Studio",
-    path: "/admin/governance-config",
-    icon: Settings,
-  },
-  {
-    module: "config",
-    label: "Feature Flags",
-    path: "/admin/feature-flags",
-    icon: Flag,
-  },
-  {
-    module: "config",
-    label: "Audit Log",
-    path: "/admin/audit",
-    icon: ScrollText,
-  },
-  {
-    module: "interviews",
-    label: "Interviews",
-    path: "/admin/interviews/schedule",
-    icon: Calendar,
-  },
-  {
-    module: "lifecycle",
-    label: "Lifecycle",
-    path: "/admin/lifecycle",
-    icon: Scale,
-  },
-  {
-    module: "officials",
-    label: "Officials",
-    path: "/admin/officials",
-    icon: UserCog,
+    label: "Administration",
+    items: [
+      { module: "interviews", label: "Interviews", path: "/admin/interviews/schedule", icon: Calendar },
+      { module: "lifecycle", label: "Lifecycle", path: "/admin/lifecycle", icon: Scale },
+      { module: "officials", label: "Officials", path: "/admin/officials", icon: UserCog },
+      { module: "config", label: "Config", path: "/admin/config", icon: Settings },
+      { module: "config", label: "Governance", path: "/admin/governance", icon: Scale },
+      { module: "config", label: "Modules", path: "/admin/modules", icon: Settings },
+      { module: "config", label: "Feature Flags", path: "/admin/feature-flags", icon: Flag },
+      { module: "config", label: "Audit Log", path: "/admin/audit", icon: ScrollText },
+    ],
   },
 ];
 
@@ -105,12 +97,6 @@ function initialsOf(name: string | null | undefined): string {
     .join("");
 }
 
-/**
- * Official Portal shell. Members never see it: an unauthenticated visitor is
- * sent to the official login page, and a member-role session is pushed back to
- * the member dashboard. Navigation shows exactly the modules this account can
- * open (super admin everything, admins all modules, officials only grants).
- */
 export default function OfficialLayout({
   children,
 }: {
@@ -119,11 +105,8 @@ export default function OfficialLayout({
   const { user, loading, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
+  const [expandedGroup, setExpandedGroup] = useState<string | null>("Overview");
 
-  // Official shell guard: unauthenticated visitors are sent to the official
-  // login page (returned to the page they tried to open), and member sessions
-  // are pushed back to the member dashboard. Side effects live in an effect,
-  // never during render.
   useEffect(() => {
     if (loading) return;
     if (typeof window === "undefined") return;
@@ -146,12 +129,9 @@ export default function OfficialLayout({
   }
 
   if (!user || !isOfficialRole(user.role)) {
-    return null; // the effect above handles navigation
+    return null;
   }
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.module || canAccessModule(user, item.module)
-  );
   const activePath = location.split("?")[0];
 
   const handleLogout = async () => {
@@ -159,39 +139,111 @@ export default function OfficialLayout({
     setLocation("/official/login");
   };
 
-  const NavLinks = ({ compact = false }: { compact?: boolean }) => (
-    <>
-      {visibleItems.map((item) => {
-        const isActive = activePath === item.path;
+  // Filter groups to only show accessible items
+  const visibleGroups = NAV_GROUPS
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !item.module || canAccessModule(user, item.module)
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  // Find which group the current page belongs to
+  const findGroupForPath = (path: string): string | null => {
+    for (const group of visibleGroups) {
+      if (group.items.some((item) => item.path === path)) {
+        return group.label;
+      }
+    }
+    return null;
+  };
+
+  // Auto-expand the group containing the active page
+  const activeGroup = findGroupForPath(activePath);
+  if (activeGroup && expandedGroup !== activeGroup) {
+    // Use setTimeout to avoid state update during render
+    setTimeout(() => setExpandedGroup(activeGroup), 0);
+  }
+
+  const SidebarNav = () => (
+    <nav className="space-y-1">
+      {visibleGroups.map((group) => {
+        const isExpanded = expandedGroup === group.label;
+        const hasActive = group.items.some((item) => item.path === activePath);
+
         return (
-          <button
-            key={item.path}
-            onClick={() => setLocation(item.path)}
-            className={
-              compact
-                ? `inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    isActive
-                      ? "bg-[#1B355E] text-white"
-                      : "text-[#5D7086] hover:bg-[#E7F4F0] hover:text-[#1B355E]"
-                  }`
-                : `inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                    isActive
-                      ? "bg-[#E7F4F0] text-[#106E5B]"
-                      : "text-[#5D7086] hover:bg-[#F0F5F3] hover:text-[#1B355E]"
-                  }`
-            }
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </button>
+          <div key={group.label}>
+            <button
+              onClick={() => setExpandedGroup(isExpanded ? null : group.label)}
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
+                hasActive
+                  ? "text-[#106E5B]"
+                  : "text-[#8A9BAE] hover:text-[#1B355E]"
+              }`}
+            >
+              {group.label}
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${
+                  isExpanded ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {isExpanded && (
+              <div className="ml-1 space-y-0.5 border-l-2 border-[#E7F4F0] pl-3">
+                {group.items.map((item) => {
+                  const isActive = activePath === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => setLocation(item.path)}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                        isActive
+                          ? "bg-[#E7F4F0] text-[#106E5B] font-semibold"
+                          : "text-[#5D7086] hover:bg-[#F0F5F3] hover:text-[#1B355E]"
+                      }`}
+                    >
+                      <item.icon className={`h-4 w-4 ${isActive ? "text-[#106E5B]" : ""}`} />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         );
       })}
-    </>
+    </nav>
+  );
+
+  // Flat list for mobile horizontal scroll
+  const MobileNav = () => (
+    <div className="flex gap-1 overflow-x-auto px-4 pb-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {visibleGroups.flatMap((group) =>
+        group.items.map((item) => {
+          const isActive = activePath === item.path;
+          return (
+            <button
+              key={item.path}
+              onClick={() => setLocation(item.path)}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                isActive
+                  ? "bg-[#1B355E] text-white"
+                  : "text-[#5D7086] hover:bg-[#E7F4F0] hover:text-[#1B355E]"
+              }`}
+            >
+              <item.icon className="h-3.5 w-3.5" />
+              {item.label}
+            </button>
+          );
+        })
+      )}
+    </div>
   );
 
   return (
     <div className="msap-page min-h-screen bg-[#F4F8F7]">
-      {/* Official portal header */}
+      {/* Header */}
       <header className="sticky top-0 z-40 border-b border-[#D9E4E1] bg-white/90 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
           <button
@@ -204,12 +256,6 @@ export default function OfficialLayout({
               <ShieldCheck className="h-3 w-3" /> Official Portal
             </span>
           </button>
-
-          {!isMobile && (
-            <nav className="hidden items-center gap-1 lg:flex">
-              <NavLinks />
-            </nav>
-          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -228,35 +274,38 @@ export default function OfficialLayout({
                     {user?.role === "superadmin" ? " · Super Admin" : ""}
                   </span>
                 </span>
+                <ChevronDown className="hidden h-4 w-4 text-[#5D7086] sm:block" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem
-                onClick={() => setLocation("/official")}
-                className="cursor-pointer"
-              >
+              <DropdownMenuItem onClick={() => setLocation("/official")} className="cursor-pointer">
                 <LayoutDashboard className="mr-2 h-4 w-4" /> Official Home
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleLogout}
-                className="cursor-pointer text-red-600 focus:text-red-600"
-              >
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
                 <LogOut className="mr-2 h-4 w-4" /> Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {/* Mobile nav row */}
-        {isMobile && (
-          <div className="flex gap-1.5 overflow-x-auto px-4 pb-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <NavLinks compact />
-          </div>
-        )}
+        {/* Mobile nav */}
+        {isMobile && <MobileNav />}
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6">{children}</main>
+      <div className="mx-auto max-w-7xl flex">
+        {/* Desktop sidebar */}
+        {!isMobile && (
+          <aside className="sticky top-16 h-[calc(100vh-4rem)] w-64 shrink-0 overflow-y-auto border-r border-[#E7F4F0] bg-white p-4">
+            <SidebarNav />
+          </aside>
+        )}
+
+        {/* Main content */}
+        <main className="flex-1 min-w-0 px-4 py-6 sm:px-6">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

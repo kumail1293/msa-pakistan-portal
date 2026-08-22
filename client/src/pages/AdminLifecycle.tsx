@@ -228,8 +228,8 @@ export default function AdminLifecycle() {
   const countData = counts.data ?? { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
 
   return (
-    <div className="py-8">
-      <div className="mx-auto max-w-7xl">
+    <div>
+      <div className="">
         {/* Header */}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>

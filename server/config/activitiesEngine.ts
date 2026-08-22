@@ -112,6 +112,61 @@ export const activitiesEngine = {
     }
   },
 
+  /** Get a single activity by ID */
+  get: async (activityId: number): Promise<any | null> => {
+    const db = getDb();
+    if (!db) return null;
+    try {
+      const [activity] = await db.select().from(activities).where(eq(activities.id, activityId)).limit(1);
+      return activity ?? null;
+    } catch { return null; }
+  },
+
+  /** Register a participant (wraps existing register with userId rename) */
+  registerParticipant: async (activityId: number, userId: number): Promise<{ success: boolean; waitlisted: boolean }> => {
+    return activitiesEngine.register(activityId, userId);
+  },
+
+  /** Get registrations for a member */
+  getMyRegistrations: async (userId: number): Promise<any[]> => {
+    const db = getDb();
+    if (!db) return [];
+    try {
+      return db.select().from(activityParticipants).where(eq(activityParticipants.userId, userId)).orderBy(desc(activityParticipants.createdAt));
+    } catch { return []; }
+  },
+
+  /** Update an activity */
+  update: async (activityId: number, updates: Record<string, any>): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.update(activities).set({ ...updates, updatedAt: new Date() }).where(eq(activities.id, activityId));
+      return true;
+    } catch { return false; }
+  },
+
+  /** Delete an activity */
+  delete: async (activityId: number): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.delete(activityParticipants).where(eq(activityParticipants.activityId, activityId));
+      await db.delete(activities).where(eq(activities.id, activityId));
+      return true;
+    } catch { return false; }
+  },
+
+  /** Update activity status */
+  updateStatus: async (activityId: number, status: string): Promise<boolean> => {
+    const db = getDb();
+    if (!db) return false;
+    try {
+      await db.update(activities).set({ status: status as any, updatedAt: new Date() }).where(eq(activities.id, activityId));
+      return true;
+    } catch { return false; }
+  },
+
   /** Get activity stats */
   getStats: async (): Promise<Record<string, number>> => {
     const db = getDb();

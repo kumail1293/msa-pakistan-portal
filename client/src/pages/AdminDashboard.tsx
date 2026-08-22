@@ -8,57 +8,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   BarChart3,
-  Users,
+  Calendar,
   CheckCircle,
-  XCircle,
-  Clock,
-  AlertCircle,
-  TrendingUp,
-  Plus,
+  ChevronRight,
+  Coins,
+  DollarSign,
+  FileText,
+  Flag,
+  Gavel,
   IdCard,
-  Upload,
   Loader2,
-  ArrowRight,
+  Megaphone,
+  ShieldCheck,
+  Upload,
+  Vote,
+  XCircle,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function AdminDashboard() {
   const { user, loading } = useAuth();
   const [, navigate] = useLocation();
 
-  const stats = { data: { total: 0, pending: 0, interviewScheduled: 0, selected: 0, rejected: 0, noShow: 0, clarify: 0, totalApplications: 0 } }; // TODO: Implement
-  const applications = { data: [] }; // TODO: Implement
-  const upcomingInterviews = { data: [] }; // TODO: Implement
-
-  // The recruitment dashboard may be opened by any official with the
-  // recruitment grant, but the Card Issuance summary below calls card-queue
-  // gated endpoints. Only run/render that section when this account can
-  // actually open the card queue (admins/super admins always can).
+  // ── Card Queue ──
   const hasCardQueue = canAccessModule(user, "card-queue");
-  const pendingCards = trpc.admin.card.pending.useQuery(undefined, {
-    retry: false,
-    enabled: hasCardQueue,
-  });
-
-  // National President's real signature, rendered on every member card.
-  const presidentSig = trpc.admin.card.getPresidentSignature.useQuery(undefined, {
-    retry: false,
-    enabled: hasCardQueue,
-  });
+  const pendingCards = trpc.admin.card.pending.useQuery(undefined, { retry: false, enabled: hasCardQueue });
+  const presidentSig = trpc.admin.card.getPresidentSignature.useQuery(undefined, { retry: false, enabled: hasCardQueue });
   const setPresidentSig = trpc.admin.card.setPresidentSignature.useMutation({
-    onSuccess: () => {
-      toast.success("National President signature updated — new cards now use it.");
-      presidentSig.refetch();
-      setSigDraft(null);
-    },
+    onSuccess: () => { toast.success("National President signature updated."); presidentSig.refetch(); setSigDraft(null); },
     onError: (err) => toast.error(err.message),
   });
   const clearPresidentSig = trpc.admin.card.clearPresidentSignature.useMutation({
-    onSuccess: () => {
-      toast.success("National President signature removed — cards revert to the cursive placeholder.");
-      presidentSig.refetch();
-      setSigDraft(null);
-    },
+    onSuccess: () => { toast.success("Signature removed — cards revert to placeholder."); presidentSig.refetch(); setSigDraft(null); },
     onError: (err) => toast.error(err.message),
   });
   const sigFileRef = useRef<HTMLInputElement>(null);
@@ -66,387 +47,247 @@ export default function AdminDashboard() {
 
   const pickSignatureFile = async (file: File | undefined | null) => {
     if (!file) return;
-    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
-      toast.error("Please upload a PNG, JPEG or WebP signature image.");
-      return;
-    }
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) { toast.error("Please upload a PNG, JPEG or WebP signature image."); return; }
     try {
-      // Strip the paper/background automatically so the signature sits cleanly
-      // on the card. PNG (with transparency) is what the server accepts.
       const { removeImageBackground } = await import("@/lib/signatureBackground");
       const dataUrl = await removeImageBackground(file, { tolerance: 30 });
       setSigDraft(dataUrl);
-    } catch {
-      toast.error("Could not process that image.");
-    }
+    } catch { toast.error("Could not process that image."); }
   };
 
-  // Wait for the session before deciding access — otherwise the first render
-  // (user still undefined) redirects admins to "/".
+  // ── Module Stats ──
+  const activitiesStats = (trpc as any).admin?.activities?.stats?.useQuery?.() ?? { data: {} };
+  const eventsStats = (trpc as any).admin?.events?.stats?.useQuery?.() ?? { data: {} };
+  const electionsStats = (trpc as any).admin?.elections?.stats?.useQuery?.() ?? { data: {} };
+  const financeStats = (trpc as any).admin?.finance?.summary?.useQuery?.() ?? { data: null };
+  const documentsStats = (trpc as any).admin?.documents?.stats?.useQuery?.() ?? { data: {} };
+  const communicationsStats = (trpc as any).admin?.communications?.stats?.useQuery?.() ?? { data: {} };
+  const plenaryStats = (trpc as any).admin?.plenary?.stats?.useQuery?.() ?? { data: {} };
+  const nefNrfStats = (trpc as any).admin?.nefNrf?.stats?.useQuery?.() ?? { data: {} };
+
   if (loading) {
     return (
       <div className="msap-page min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#138A73]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#138A73]" />
       </div>
     );
   }
 
-  // Module access: admins and super admins inherit the recruitment module;
-  // officials only when the super admin opened it for them.
-  if (!user || !canAccessModule(user, "recruitment")) {
-    navigate("/official");
-    return null;
-  }
+  if (!user) return null;
 
-  const dashboardStats = stats.data;
+  const actData = (activitiesStats.data ?? {}) as Record<string, number>;
+  const evtData = (eventsStats.data ?? {}) as Record<string, number>;
+  const elecData = (electionsStats.data ?? {}) as Record<string, number>;
+  const finData = financeStats.data as any;
+  const docData = (documentsStats.data ?? {}) as Record<string, number>;
+  const commsData = (communicationsStats.data ?? {}) as Record<string, number>;
+  const plenData = (plenaryStats.data ?? {}) as Record<string, number>;
+  const nefData = (nefNrfStats.data ?? {}) as Record<string, number>;
 
-  const chartData = dashboardStats
-    ? [
-        { name: "Pending", value: dashboardStats.pending, fill: "#f59e0b" },
-        { name: "Interview", value: dashboardStats.interviewScheduled, fill: "#3b82f6" },
-        { name: "Selected", value: dashboardStats.selected, fill: "#10b981" },
-        { name: "Rejected", value: dashboardStats.rejected, fill: "#ef4444" },
-        { name: "No-Show", value: dashboardStats.noShow, fill: "#8b5cf6" },
-        { name: "Clarify", value: dashboardStats.clarify, fill: "#f97316" },
-      ]
-    : [];
+  const totalActivities = Object.values(actData).reduce((s, n) => s + n, 0);
+  const totalEvents = Object.values(evtData).reduce((s, n) => s + n, 0);
+  const totalElections = Object.values(elecData).reduce((s, n) => s + n, 0);
+  const totalDocs = Object.values(docData).reduce((s, n) => s + n, 0);
+  const totalAnnouncements = Object.values(commsData).reduce((s, n) => s + n, 0);
+  const totalPlenary = Object.values(plenData).reduce((s, n) => s + n, 0);
+  const totalNefCycles = Object.values(nefData).reduce((s, n) => s + n, 0);
+
+  const moduleChartData = [
+    { name: "Activities", count: totalActivities, fill: "#138A73" },
+    { name: "Events", count: totalEvents, fill: "#1B355E" },
+    { name: "Elections", count: totalElections, fill: "#6366f1" },
+    { name: "Documents", count: totalDocs, fill: "#f59e0b" },
+    { name: "Plenary", count: totalPlenary, fill: "#ec4899" },
+    { name: "NEF/NRF", count: totalNefCycles, fill: "#8b5cf6" },
+  ];
+
+  const modules = [
+    { label: "Activities", icon: Calendar, count: totalActivities, detail: `${actData["draft"] ?? 0} drafts, ${actData["active"] ?? actData["in_progress"] ?? 0} active`, color: "bg-emerald-50 text-emerald-600 border-emerald-100", path: "/admin/activities" },
+    { label: "Events", icon: Calendar, count: totalEvents, detail: `${evtData["published"] ?? 0} published, ${evtData["draft"] ?? 0} drafts`, color: "bg-blue-50 text-blue-600 border-blue-100", path: "/admin/events" },
+    { label: "Elections", icon: Vote, count: totalElections, detail: `${elecData["voting_active"] ?? elecData["active"] ?? 0} active, ${elecData["certified"] ?? 0} certified`, color: "bg-indigo-50 text-indigo-600 border-indigo-100", path: "/admin/elections" },
+    { label: "Plenary", icon: Gavel, count: totalPlenary, detail: `${plenData["in_progress"] ?? 0} live, ${plenData["completed"] ?? 0} completed`, color: "bg-pink-50 text-pink-600 border-pink-100", path: "/admin/plenary" },
+    { label: "Finance", icon: DollarSign, count: finData?.transactions ?? 0, detail: `PKR ${(finData?.totalIncome ?? 0).toLocaleString()} income`, color: "bg-amber-50 text-amber-600 border-amber-100", path: "/admin/finance" },
+    { label: "NEF/NRF", icon: Coins, count: totalNefCycles, detail: `${nefData["status_open"] ?? 0} open cycles`, color: "bg-violet-50 text-violet-600 border-violet-100", path: "/admin/nef-nrf" },
+    { label: "Documents", icon: FileText, count: totalDocs, detail: `${docData["published"] ?? 0} published, ${docData["draft"] ?? 0} drafts`, color: "bg-orange-50 text-orange-600 border-orange-100", path: "/admin/documents" },
+    { label: "Communications", icon: Megaphone, count: totalAnnouncements, detail: `${commsData["sent"] ?? 0} sent, ${commsData["queued"] ?? 0} queued`, color: "bg-cyan-50 text-cyan-600 border-cyan-100", path: "/admin/communications" },
+  ];
 
   return (
-    <div className="py-8">
-      <div className="mx-auto max-w-7xl">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#1B355E] mb-2">Recruitment Dashboard</h1>
-            <p className="text-[#66788D]">Real-time recruitment metrics and analytics</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#1B355E] sm:text-3xl">
+            Admin Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-[#66788D]">Platform overview across all modules</p>
+        </div>
+        <Button onClick={() => navigate("/official")} variant="outline" className="border-[#D9E4E1] self-start">
+          <ShieldCheck className="mr-2 h-4 w-4" /> Official Home
+        </Button>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
+        {modules.slice(0, 4).map((mod) => (
+          <Card key={mod.label} className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${mod.color} border`}>
+                  <mod.icon className="h-4 w-4" />
+                </div>
+                <span className="text-2xl font-bold text-[#1B355E]">{mod.count}</span>
+              </div>
+              <p className="mt-2 text-xs font-medium text-[#66788D]">{mod.label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Module Grid */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base text-[#1B355E]">
+            <BarChart3 className="h-4 w-4 text-[#106E5B]" />
+            Modules
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {modules.map((mod) => (
+              <button
+                key={mod.label}
+                onClick={() => navigate(mod.path)}
+                className="group rounded-xl border border-[#E7F4F0] bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-[#A8D8CD] hover:shadow-md"
+              >
+                <div className="flex items-start justify-between">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${mod.color} border transition-transform group-hover:scale-110`}>
+                    <mod.icon className="h-4 w-4" />
+                  </div>
+                  <span className="text-xl font-bold text-[#1B355E]">{mod.count}</span>
+                </div>
+                <h4 className="mt-3 font-semibold text-sm text-[#1B355E]">{mod.label}</h4>
+                <p className="mt-0.5 text-[11px] text-[#66788D] line-clamp-1">{mod.detail}</p>
+                <div className="mt-2 flex items-center text-[11px] font-medium text-[#106E5B] opacity-0 transition-opacity group-hover:opacity-100">
+                  Open module <ChevronRight className="ml-0.5 h-3 w-3" />
+                </div>
+              </button>
+            ))}
           </div>
-          <Button className="btn-primary">
-            <Plus className="h-4 w-4 mr-2" />
-            New Application
-          </Button>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            icon={<Users className="h-6 w-6" />}
-            label="Total Applications"
-            value={dashboardStats?.totalApplications || 0}
-            trend="+12%"
-          />
-          <StatCard
-            icon={<Clock className="h-6 w-6" />}
-            label="Pending Review"
-            value={dashboardStats?.pending || 0}
-            trend="-5%"
-          />
-          <StatCard
-            icon={<CheckCircle className="h-6 w-6" />}
-            label="Selected"
-            value={dashboardStats?.selected || 0}
-            trend="+8%"
-          />
-          <StatCard
-            icon={<XCircle className="h-6 w-6" />}
-            label="Rejected"
-            value={dashboardStats?.rejected || 0}
-            trend="+3%"
-          />
-        </div>
-
-        {/* Card Issuance — summary + link to the full queue. Rendered only
-            for accounts that can open the card queue. */}
-        {hasCardQueue && (
-        <Card className="card-cinematic mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-[#1B355E]">
-              <IdCard className="h-5 w-5 text-[#106E5B]" />
-              Card Issuance
-              {pendingCards.data && pendingCards.data.length > 0 && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-                  {pendingCards.data.length} pending
-                </span>
-              )}
-            </CardTitle>
+      {/* Chart + Card Queue */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-[#1B355E]">Module Activity Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#E7EFEC] bg-[#F6F9F8] p-4">
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#1B355E]">
-                  <IdCard className="h-6 w-6 text-white" />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-[#1B355E]">
-                    {pendingCards.data && pendingCards.data.length > 0
-                      ? `${pendingCards.data.length} card request${pendingCards.data.length === 1 ? "" : "s"} awaiting review`
-                      : "No card requests awaiting review"}
-                  </p>
-                  <p className="mt-0.5 text-xs text-[#5D7086]">
-                    Holder signatures and data-change re-issues, with search and
-                    status filters.
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => navigate("/admin/cards")}
-                className="bg-[#1B355E] text-white hover:bg-[#294A78]"
-              >
-                Open queue
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* National President signature */}
-            <div className="mt-6 rounded-xl border border-[#D9E4E1] bg-white p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-[#1B355E]">National President signature</p>
-                  <p className="mt-0.5 text-xs leading-5 text-[#5D7086]">
-                    {presidentSig.data
-                      ? "A real signature image is set — it appears on every member card instead of the cursive placeholder."
-                      : "Not set — cards currently render a cursive placeholder. Upload the President's signature (PNG) to use the real one."}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {(presidentSig.data || sigDraft) && (
-                    <img
-                      src={sigDraft ?? presidentSig.data ?? ""}
-                      alt="President signature"
-                      className="h-12 max-w-[140px] rounded-lg border border-[#D9E4E1] object-contain p-1"
-                      style={{
-                        backgroundImage: sigDraft
-                          ? "conic-gradient(#E9EFED 0 25%, #ffffff 0 50%, #E9EFED 0 75%, #ffffff 0)"
-                          : undefined,
-                        backgroundSize: "12px 12px",
-                      }}
-                    />
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-[#1B355E] text-[#1B355E] hover:bg-[#F0F5F3]"
-                    onClick={() => sigFileRef.current?.click()}
-                  >
-                    <Upload className="mr-1.5 h-4 w-4" />
-                    {presidentSig.data || sigDraft ? "Replace" : "Upload image"}
-                  </Button>
-                  {sigDraft && (
-                    <Button
-                      size="sm"
-                      disabled={setPresidentSig.isPending || sigDraft.length > 400_000}
-                      onClick={() => {
-                        if (sigDraft.length > 400_000) {
-                          toast.error(
-                            "That signature image is too large. Try a smaller or less detailed image."
-                          );
-                          return;
-                        }
-                        setPresidentSig.mutate({ dataUrl: sigDraft });
-                      }}
-                      className="bg-[#1B355E] text-white hover:bg-[#294A78] disabled:opacity-60"
-                    >
-                      {setPresidentSig.isPending ? (
-                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="mr-1.5 h-4 w-4" />
-                      )}
-                      Save
-                    </Button>
-                  )}
-                  {presidentSig.data && !sigDraft && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={clearPresidentSig.isPending}
-                      onClick={() => clearPresidentSig.mutate()}
-                      className="border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                      <XCircle className="mr-1.5 h-4 w-4" /> Remove
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <input
-                ref={sigFileRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={(e) => pickSignatureFile(e.target.files?.[0])}
-              />
-            </div>
-          </CardContent>
-        </Card>
-        )}
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Pipeline Status Chart */}
-          <Card className="card-cinematic lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-[#1B355E]">
-              <BarChart3 className="h-5 w-5 text-[#106E5B]" />
-              Pipeline Status Distribution
-            </CardTitle>
-          </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
+            {moduleChartData.some((d) => d.count > 0) ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={moduleChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(27,53,94,0.08)" />
-                  <XAxis dataKey="name" stroke="#8A9BAE" />
-                  <YAxis stroke="#8A9BAE" />
+                  <XAxis dataKey="name" stroke="#8A9BAE" fontSize={11} />
+                  <YAxis stroke="#8A9BAE" fontSize={11} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #D9E4E1",
-                      borderRadius: "12px",
-                      boxShadow: "0 12px 30px rgba(27,53,94,0.15)",
-                    }}
+                    contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #D9E4E1", borderRadius: "12px", boxShadow: "0 12px 30px rgba(27,53,94,0.15)" }}
                   />
-                  <Bar dataKey="value" fill="#138A73" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="count" fill="#138A73" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-[#8A9BAE]">
+                <p className="text-sm">No module data yet.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* Status Pie Chart */}
-          <Card className="card-cinematic">
-            <CardHeader>
-              <CardTitle className="text-base text-[#1B355E]">Status Breakdown</CardTitle>
+        {hasCardQueue && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base text-[#1B355E]">
+                <IdCard className="h-4 w-4 text-[#106E5B]" />
+                Card Queue
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+            <CardContent className="space-y-3">
+              <div className="rounded-xl border border-[#E7EFEC] bg-[#F6F9F8] p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1B355E]">
+                    <IdCard className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm text-[#1B355E]">
+                      {pendingCards.data?.length ?? 0} pending
+                    </p>
+                    <p className="text-[11px] text-[#5D7086]">card requests</p>
+                  </div>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => navigate("/admin/cards")} className="w-full bg-[#1B355E] text-white hover:bg-[#294A78]">
+                Open queue <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
 
-        {/* Upcoming Interviews */}
-        <Card className="card-cinematic mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-[#1B355E]">
-              <AlertCircle className="h-5 w-5 text-[#106E5B]" />
-              Upcoming Interviews ({upcomingInterviews.data?.length || 0})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {upcomingInterviews.data && upcomingInterviews.data.length > 0 ? (
-              <div className="space-y-4">
-                {upcomingInterviews.data.slice(0, 5).map((interview: any) => (
-                  <div
-                    key={interview.id}
-                    className="flex items-center justify-between p-4 bg-[#F6F9F8] border border-[#E7EFEC] rounded-xl hover:border-[#A8D8CD] transition"
-                  >
-                    <div>
-                      <p className="font-semibold text-[#1B355E]">Interview #{interview.id}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(interview.scheduledAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      View Details
+              {/* President signature */}
+              <div className="rounded-xl border border-[#D9E4E1] p-3">
+                <p className="text-xs font-semibold text-[#1B355E]">President Signature</p>
+                <p className="mt-0.5 text-[10px] text-[#5D7086]">
+                  {presidentSig.data ? "Set ✓" : "Not set — placeholder used"}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-[#1B355E] text-[#1B355E]" onClick={() => sigFileRef.current?.click()}>
+                    <Upload className="mr-1 h-3 w-3" /> Upload
+                  </Button>
+                  {presidentSig.data && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-red-200 text-red-600" onClick={() => clearPresidentSig.mutate()}>
+                      <XCircle className="mr-1 h-3 w-3" /> Remove
+                    </Button>
+                  )}
+                </div>
+                {sigDraft && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img src={sigDraft} alt="Preview" className="h-8 rounded border" />
+                    <Button size="sm" className="h-7 text-xs bg-[#106E5B] text-white" disabled={setPresidentSig.isPending} onClick={() => setPresidentSig.mutate({ dataUrl: sigDraft })}>
+                      {setPresidentSig.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                      {" "}Save
                     </Button>
                   </div>
-                ))}
+                )}
+                <input ref={sigFileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => pickSignatureFile(e.target.files?.[0])} />
               </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-8">No upcoming interviews scheduled</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Applications */}
-        <Card className="card-cinematic">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-[#1B355E]">
-              <TrendingUp className="h-5 w-5 text-[#106E5B]" />
-              Recent Applications
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {applications.data && applications.data.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                          <thead>
-                    <tr className="border-b border-[#D9E4E1]">
-                      <th className="text-left py-3 px-4 font-semibold text-[#106E5B]">ID</th>
-                      <th className="text-left py-3 px-4 font-semibold text-[#106E5B]">Candidate</th>
-                      <th className="text-left py-3 px-4 font-semibold text-[#106E5B]">Position</th>
-                      <th className="text-left py-3 px-4 font-semibold text-[#106E5B]">Status</th>
-                      <th className="text-left py-3 px-4 font-semibold text-[#106E5B]">Applied</th>
-                      <th className="text-left py-3 px-4 font-semibold text-[#106E5B]">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {applications.data.slice(0, 10).map((app: any) => (
-                      <tr key={app.id} className="border-b border-[#E7EFEC] hover:bg-[#F6F9F8] transition">
-                        <td className="py-3 px-4">#{app.id}</td>
-                        <td className="py-3 px-4 text-[#1B355E]">Candidate {app.candidateId}</td>
-                        <td className="py-3 px-4">Position {app.positionId}</td>
-                        <td className="py-3 px-4">
-                          <span className="badge-accent">{app.status}</span>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground">
-                          {new Date(app.appliedAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Button variant="ghost" size="sm" className="text-accent hover:text-accent/80">
-                            View
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-8">No applications yet</p>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
-    </div>
-  );
-}
 
-function StatCard({
-  icon,
-  label,
-  value,
-  trend,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  trend: string;
-}) {
-  return (
-    <Card className="card-cinematic">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-[#66788D] mb-1">{label}</p>
-            <p className="text-3xl font-bold text-[#1B355E]">{value}</p>
-            <p className="text-xs text-[#106E5B] mt-2">{trend} from last month</p>
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-[#1B355E]">Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Module Manager", icon: Flag, path: "/admin/modules" },
+              { label: "Feature Flags", icon: Flag, path: "/admin/feature-flags" },
+              { label: "Audit Log", icon: ShieldCheck, path: "/admin/audit" },
+              { label: "Governance", icon: Gavel, path: "/admin/governance" },
+            ].map((action) => (
+              <button
+                key={action.path}
+                onClick={() => navigate(action.path)}
+                className="flex items-center gap-2.5 rounded-xl border border-[#E7F4F0] bg-white px-4 py-3 text-left text-sm font-medium text-[#1B355E] transition-all hover:border-[#A8D8CD] hover:bg-[#F8FBFA]"
+              >
+                <action.icon className="h-4 w-4 text-[#106E5B]" />
+                {action.label}
+                <ChevronRight className="ml-auto h-3 w-3 text-[#8A9BAE]" />
+              </button>
+            ))}
           </div>
-          <div className="text-accent opacity-50">{icon}</div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

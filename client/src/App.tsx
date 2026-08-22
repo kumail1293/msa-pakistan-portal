@@ -32,6 +32,21 @@ import AdminGovernanceDashboard from "./pages/AdminGovernanceDashboard";
 import GovernanceTransparency from "./pages/GovernanceTransparency";
 // PublicLanding moved to WordPress public website (msapakistan.org)
 import AdminModules from "./pages/AdminModules";
+import AdminActivities from "./pages/AdminActivities";
+import AdminEvents from "./pages/AdminEvents";
+import AdminElections from "./pages/AdminElections";
+import AdminFinance from "./pages/AdminFinance";
+import AdminDocuments from "./pages/AdminDocuments";
+import AdminCommunications from "./pages/AdminCommunications";
+import MemberActivities from "./pages/MemberActivities";
+import MemberEvents from "./pages/MemberEvents";
+import MemberElections from "./pages/MemberElections";
+import MemberFinance from "./pages/MemberFinance";
+import MemberCommunications from "./pages/MemberCommunications";
+import AdminPlenary from "./pages/AdminPlenary";
+import AdminNEF from "./pages/AdminNEF";
+import MemberPlenary from "./pages/MemberPlenary";
+import MemberNEF from "./pages/MemberNEF";
 import SetPassword from "./pages/SetPassword";
 import VerifyCard from "./pages/VerifyCard";
 import SSOCallback from "./pages/SSOCallback";
@@ -85,6 +100,41 @@ function Router() {
       <Route path={"/documents"}>
         <MemberLayout>
           <Documents />
+        </MemberLayout>
+      </Route>
+      <Route path={"/activities"}>
+        <MemberLayout>
+          <MemberActivities />
+        </MemberLayout>
+      </Route>
+      <Route path={"/events"}>
+        <MemberLayout>
+          <MemberEvents />
+        </MemberLayout>
+      </Route>
+      <Route path={"/elections"}>
+        <MemberLayout>
+          <MemberElections />
+        </MemberLayout>
+      </Route>
+      <Route path={"/plenary"}>
+        <MemberLayout>
+          <MemberPlenary />
+        </MemberLayout>
+      </Route>
+      <Route path={"/nef-nrf"}>
+        <MemberLayout>
+          <MemberNEF />
+        </MemberLayout>
+      </Route>
+      <Route path={"/finance"}>
+        <MemberLayout>
+          <MemberFinance />
+        </MemberLayout>
+      </Route>
+      <Route path={"/communications"}>
+        <MemberLayout>
+          <MemberCommunications />
         </MemberLayout>
       </Route>
       <Route path={"/settings"}>
@@ -156,6 +206,46 @@ function Router() {
       <Route path={"/admin/governance-config"}>
         <OfficialLayout>
           <AdminGovernanceConfig />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/activities"}>
+        <OfficialLayout>
+          <AdminActivities />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/events"}>
+        <OfficialLayout>
+          <AdminEvents />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/elections"}>
+        <OfficialLayout>
+          <AdminElections />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/finance"}>
+        <OfficialLayout>
+          <AdminFinance />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/documents"}>
+        <OfficialLayout>
+          <AdminDocuments />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/communications"}>
+        <OfficialLayout>
+          <AdminCommunications />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/plenary"}>
+        <OfficialLayout>
+          <AdminPlenary />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/nef-nrf"}>
+        <OfficialLayout>
+          <AdminNEF />
         </OfficialLayout>
       </Route>
 

@@ -1135,3 +1135,60 @@ async function decryptBallot(
   const plaintext = Buffer.from(encryptedBallot, "base64").toString("utf-8");
   return JSON.parse(plaintext);
 }
+
+// ============================================================================
+// Stats & Disputes List
+// ============================================================================
+
+/**
+ * Get election stats (counts by type).
+ */
+export async function getElectionStats(): Promise<Record<string, number>> {
+  const db = getDb();
+  if (!db) return {};
+  try {
+    const counts = await db
+      .select({ type: elections.type, count: sql<number>`count(*)` })
+      .from(elections)
+      .groupBy(elections.type);
+    return Object.fromEntries(counts.map((c) => [c.type ?? "unknown", c.count]));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * List election disputes with optional filters.
+ */
+export async function listElectionDisputes(
+  filters: { electionId?: number; status?: string } = {}
+): Promise<any[]> {
+  const db = getDb();
+  if (!db) return [];
+  try {
+    const conditions = [];
+    if (filters.electionId) conditions.push(eq(electionDisputes.electionId, filters.electionId));
+    if (filters.status) conditions.push(eq(electionDisputes.status, filters.status as any));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    return db
+      .select()
+      .from(electionDisputes)
+      .where(where)
+      .orderBy(desc(electionDisputes.createdAt))
+      .limit(50);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get all elections a member has voted in.
+ * Note: Ballots use anonymized voter hashes for secrecy, so we cannot
+ * directly query by userId. This is a placeholder that returns empty;
+ * a proper implementation would use a separate ballot-tracker table.
+ */
+export async function getMyVotes(_userId: number): Promise<any[]> {
+  // TODO: Implement ballot-tracker table for non-anonymous vote tracking.
+  // The ballots table uses voterHash for ballot secrecy, so userId is not stored.
+  return [];
+}
