@@ -65,6 +65,8 @@ const TYPE_COLORS: Record<string, string> = {
   notice: "bg-red-50 text-red-700",
   minutes: "bg-indigo-50 text-indigo-700",
   resolution: "bg-pink-50 text-pink-700",
+  bcp: "bg-orange-50 text-orange-700",
+  publication: "bg-cyan-50 text-cyan-700",
 };
 
 const VISIBILITY_LABELS: Record<string, string> = {
@@ -174,6 +176,8 @@ export default function AdminDocuments() {
                     <SelectItem value="notice">Notice</SelectItem>
                     <SelectItem value="minutes">Minutes</SelectItem>
                     <SelectItem value="resolution">Resolution</SelectItem>
+                    <SelectItem value="bcp">Bylaw Change Proposal (§17.2)</SelectItem>
+                    <SelectItem value="publication">Publication (§14.2, needs VPPRC approval)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

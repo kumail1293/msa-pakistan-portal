@@ -49,9 +49,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const ELECTION_TYPES = [
-  { value: "presidential", label: "Presidential" },
-  { value: "board", label: "Board" },
-  { value: "national_team", label: "National Team" },
+  { value: "presidential", label: "Presidential (§9.1.1)" },
+  { value: "board", label: "Board (EB)" },
+  { value: "national_team", label: "National Team (TO)" },
+  { value: "supco", label: "Supervising Council (§9.3)" },
+  { value: "nga_officer", label: "NGA Officer" },
   { value: "regional", label: "Regional" },
   { value: "chapter", label: "Chapter" },
   { value: "committee", label: "Committee" },

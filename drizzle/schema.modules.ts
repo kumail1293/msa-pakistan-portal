@@ -224,7 +224,7 @@ export const events = mysqlTable("events", {
   organizationId: int("organizationId"),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  type: mysqlEnum("type", ["conference", "assembly", "meeting", "workshop", "webinar", "training", "social", "campaign", "custom"]).default("conference"),
+  type: mysqlEnum("type", ["conference", "nga", "sga", "oga", "presidents_session", "assembly", "meeting", "workshop", "webinar", "training", "social", "campaign", "custom"]).default("conference"),
   status: mysqlEnum("status", ["draft", "published", "registration_open", "registration_closed", "in_progress", "completed", "cancelled"]).default("draft"),
   startDate: timestamp("startDate").notNull(),
   endDate: timestamp("endDate").notNull(),
@@ -233,11 +233,21 @@ export const events = mysqlTable("events", {
   city: varchar("city", { length: 100 }),
   onlineUrl: varchar("onlineUrl", { length: 500 }),
   mode: mysqlEnum("mode", ["in_person", "online", "hybrid"]).default("in_person"),
+  // §8.1.13: Mode shift to online requires SupCo approval + 2/3 LC majority
+  modeChangeApproved: boolean("modeChangeApproved").default(false),
   maxCapacity: int("maxCapacity"),
   currentRegistrations: int("currentRegistrations").default(0),
   fee: int("fee").default(0), // PKR
   certificateTemplateId: int("certificateTemplateId"),
   bannerUrl: varchar("bannerUrl", { length: 500 }),
+  // §8.1.8: Quorum = 1/3 of Permanent+Temporary LCs
+  quorumRequired: int("quorumRequired"), // calculated as 1/3 of Permanent+Temporary LCs
+  quorumMet: boolean("quorumMet").default(false),
+  // §8.1.4: NGA organized by Organizing Committee
+  isNga: boolean("isNga").default(false),
+  ngaoCId: int("ngaoCId"), // reference to NGA Organizing Committee
+  // §8.1.12: NGA must be held in person (shift to online needs approval)
+  scheduledBeforeAug20: boolean("scheduledBeforeAug20").default(false), // §6.3: Jul 20 - Aug 20 window
   metadata: json("metadata"),
   createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -317,6 +327,12 @@ export const financeBudgets = mysqlTable("finance_budgets", {
   status: mysqlEnum("status", ["draft", "proposed", "approved", "active", "closed"]).default("draft"),
   approvedBy: int("approvedBy"),
   approvedAt: timestamp("approvedAt"),
+  supcoReviewed: boolean("supcoReviewed").default(false), // §15.2.2: draft submitted to SupCo 4 weeks before NGA
+  supcoReviewAt: timestamp("supcoReviewAt"),
+  ngaApproved: boolean("ngaApproved").default(false), // §15.2.4: final budget approved by NGA
+  ngaApprovedAt: timestamp("ngaApprovedAt"),
+  financialYearStart: timestamp("financialYearStart"), // §15.1.19: Oct 1
+  financialYearEnd: timestamp("financialYearEnd"), // §15.1.19: Sep 30
   metadata: json("metadata"),
   createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -348,10 +364,18 @@ export const financeTransactions = mysqlTable("finance_transactions", {
   budgetId: int("budgetId"),
   relatedEntityType: varchar("relatedEntityType", { length: 50 }), // activity, event, grant, etc.
   relatedEntityId: int("relatedEntityId"),
-  status: mysqlEnum("status", ["draft", "pending_approval", "approved", "paid", "rejected", "reconciled"]).default("draft"),
+  status: mysqlEnum("status", ["draft", "pending_vpf", "pending_president", "pending_eb", "approved", "paid", "rejected", "reconciled"]).default("draft"),
   receiptUrl: varchar("receiptUrl", { length: 500 }),
-  approvedBy: int("approvedBy"),
+  // §15.4: Transaction approval tiers
+  // VPF approves ≤PKR 5,000 (§15.4.1)
+  // President approves ≤PKR 15,000 (§15.4.2)
+  // EB approves >PKR 15,000 with 2/3 majority (§15.4.3)
+  approvalTier: varchar("approvalTier", { length: 50 }), // vpf, president, eb
+  // §15.4.4: Dual signatories required (President + VPF)
+  approvedBy: int("approvedBy"), // first signatory (VPF)
   approvedAt: timestamp("approvedAt"),
+  secondSignatoryId: int("secondSignatoryId"), // second signatory (President)
+  secondSignedAt: timestamp("secondSignedAt"),
   paidAt: timestamp("paidAt"),
   metadata: json("metadata"),
   createdBy: int("createdBy"),
@@ -665,3 +689,105 @@ export const grantDisbursements = mysqlTable("grant_disbursements", {
 }));
 
 export type GrantDisbursement = typeof grantDisbursements.$inferSelect;
+
+// ============================================================================
+// BYLAWS ALIGNMENT TABLES
+// ============================================================================
+
+// Standing Committee Membership (§10.2)
+export const standingCommitteeMembers = mysqlTable("sc_members", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  standingCommittee: varchar("standingCommittee", { length: 50 }).notNull(), // SCOPH, SCORA, SCOME, SCORP, SCOPE, SCORE
+  role: varchar("role", { length: 50 }).default("member"), // member, national_officer (NPO/NORP/NORA/NOME/NORE/NEO)
+  termStart: timestamp("termStart"),
+  termEnd: timestamp("termEnd"),
+  status: mysqlEnum("status", ["active", "former"]).default("active"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index("scm_user_idx").on(table.userId),
+  scIdx: index("scm_sc_idx").on(table.standingCommittee),
+  uniqueMembership: uniqueIndex("scm_unique").on(table.userId, table.standingCommittee),
+}));
+
+// Event Delegates & Credentials (§8.1.14-8.1.16)
+export const eventDelegates = mysqlTable("event_delegates", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: int("eventId").notNull(),
+  userId: int("userId").notNull(),
+  chapterId: int("chapterId"), // LC or CI this delegate represents
+  role: varchar("role", { length: 50 }).default("delegate"), // delegate, observer, external, staff, official
+  credentialFormSubmitted: boolean("credentialFormSubmitted").default(false),
+  votingEligible: boolean("votingEligible").default(false), // Only Permanent+Temporary LCs (§6.4)
+  lcType: varchar("lcType", { length: 50 }), // permanent, temporary, candidate, coordinator_institute
+  checkedIn: boolean("checkedIn").default(false),
+  checkedInAt: timestamp("checkedInAt"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  eventIdx: index("ed_event_idx").on(table.eventId),
+  userIdx: index("ed_user_idx").on(table.userId),
+  chapterIdx: index("ed_chapter_idx").on(table.chapterId),
+}));
+
+// Bylaw Change Proposals (§17.2)
+export const bylawChangeProposals = mysqlTable("bylaw_change_proposals", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  proposedChanges: text("proposedChanges").notNull(), // the actual bylaw text changes
+  submittedById: int("submittedById").notNull(),
+  submittedByType: varchar("submittedByType", { length: 50 }).notNull(), // supco, ebto, two_permanent_lcs
+  supportingChapterIds: json("supportingChapterIds").$type<number[]>(), // for LC submissions, need ≥2 Permanent LCs
+  status: mysqlEnum("status", [
+    "draft", "submitted", "under_review", "nga_pending",
+    "adopted", "rejected"
+  ]).default("draft").notNull(),
+  targetNgaDate: timestamp("targetNgaDate"), // must be ≥3 weeks before NGA (§17.2.2)
+  voteResult: varchar("voteResult", { length: 50 }), // 2/3 majority required (§17.2.6)
+  adoptedAt: timestamp("adoptedAt"),
+  effectiveFrom: timestamp("effectiveFrom"),
+  metadata: json("metadata"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  statusIdx: index("bcp_status_idx").on(table.status),
+  submitterIdx: index("bcp_submitter_idx").on(table.submittedById),
+}));
+
+// Publication Approvals (§14.2) — all publications must be approved by VPPRC
+export const publicationApprovals = mysqlTable("publication_approvals", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId"),
+  announcementId: int("announcementId"),
+  title: varchar("title", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // publication, leaflet, pamphlet, booklet, newsletter, magazine
+  submittedById: int("submittedById").notNull(),
+  status: mysqlEnum("status", [
+    "submitted", "under_review", "approved", "rejected"
+  ]).default("submitted").notNull(),
+  reviewedById: int("reviewedById"), // VPPRC
+  reviewNotes: text("reviewNotes"),
+  reviewedAt: timestamp("reviewedAt"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  statusIdx: index("pa_status_idx").on(table.status),
+}));
+
+// NGA Organizing Committee (§8.1.4-8.1.7)
+export const ngaOrganizingCommittee = mysqlTable("nga_oc", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: int("eventId").notNull(), // the NGA event
+  userId: int("userId").notNull(),
+  role: varchar("role", { length: 100 }), // chair, logistics, finance, communications, etc.
+  status: mysqlEnum("status", ["active", "former"]).default("active"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  eventIdx: index("oc_event_idx").on(table.eventId),
+  userIdx: index("oc_user_idx").on(table.userId),
+}));

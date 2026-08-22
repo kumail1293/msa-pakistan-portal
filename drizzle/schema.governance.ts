@@ -33,8 +33,9 @@ export const elections = mysqlTable("elections", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   type: mysqlEnum("type", [
-    "presidential", "board", "national_team", "regional", 
-    "chapter", "committee", "referendum"
+    "presidential", "board", "national_team", "regional",
+    "chapter", "committee", "referendum",
+    "supco", "nga_officer"
   ]).notNull(),
   
   // Status lifecycle

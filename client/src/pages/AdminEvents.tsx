@@ -69,6 +69,7 @@ export default function AdminEvents() {
   const [newEvent, setNewEvent] = useState({
     title: "", description: "", type: "conference", startDate: "", endDate: "",
     venue: "", city: "", mode: "in_person", maxCapacity: 0, fee: 0,
+    isNga: false, quorumRequired: 0, scheduledBeforeAug20: false,
   });
   const [editEvent, setEditEvent] = useState<any>(null);
 
@@ -83,7 +84,7 @@ export default function AdminEvents() {
       setCreateOpen(false);
       events.refetch();
       stats.refetch();
-      setNewEvent({ title: "", description: "", type: "conference", startDate: "", endDate: "", venue: "", city: "", mode: "in_person", maxCapacity: 0, fee: 0 });
+      setNewEvent({ title: "", description: "", type: "conference", startDate: "", endDate: "", venue: "", city: "", mode: "in_person", maxCapacity: 0, fee: 0, isNga: false, quorumRequired: 0, scheduledBeforeAug20: false });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -149,6 +150,10 @@ export default function AdminEvents() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="conference">Conference</SelectItem>
+                    <SelectItem value="nga">NGA — National General Assembly (§8.1)</SelectItem>
+                    <SelectItem value="sga">SGA — Special General Assembly</SelectItem>
+                    <SelectItem value="oga">OGA — Online General Assembly</SelectItem>
+                    <SelectItem value="presidents_session">Presidents' Session (§8.9)</SelectItem>
                     <SelectItem value="assembly">Assembly</SelectItem>
                     <SelectItem value="meeting">Meeting</SelectItem>
                     <SelectItem value="workshop">Workshop</SelectItem>
@@ -194,6 +199,18 @@ export default function AdminEvents() {
                 <label className="text-sm font-medium text-[#1B355E]">Fee (PKR)</label>
                 <Input type="number" value={newEvent.fee || ""} onChange={(e) => setNewEvent({ ...newEvent, fee: Number(e.target.value) })} placeholder="0 = Free" />
               </div>
+              {newEvent.type === "nga" && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-[#1B355E]">Quorum Required (§8.1.8)</label>
+                    <Input type="number" value={newEvent.quorumRequired || ""} onChange={(e) => setNewEvent({ ...newEvent, quorumRequired: Number(e.target.value) })} placeholder="1/3 of Permanent+Temporary LCs" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="scheduledBeforeAug20" checked={newEvent.scheduledBeforeAug20} onChange={(e) => setNewEvent({ ...newEvent, scheduledBeforeAug20: e.target.checked })} className="rounded border-[#D9E4E1]" />
+                    <label htmlFor="scheduledBeforeAug20" className="text-sm font-medium text-[#1B355E]">Within Jul 20 – Aug 20 window (§6.3)</label>
+                  </div>
+                </>
+              )}
               <div className="sm:col-span-2 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
                 <Button className="bg-[#138A73] hover:bg-[#106E5B] text-white" onClick={() => createEvent.mutate({ ...newEvent, startDate: new Date(newEvent.startDate), endDate: new Date(newEvent.endDate) })} disabled={!newEvent.title || !newEvent.startDate || !newEvent.endDate || createEvent.isPending}>

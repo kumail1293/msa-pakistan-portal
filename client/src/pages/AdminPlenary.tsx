@@ -13,14 +13,14 @@ export default function AdminPlenary() {
   const [selectedTab, setSelectedTab] = useState("sessions");
   const [statusFilter, setStatusFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [newSession, setNewSession] = useState({ title: "", description: "", type: "ordinary", scheduledStart: "", scheduledEnd: "", chairId: 0, secretaryId: 0 });
+  const [newSession, setNewSession] = useState({ title: "", description: "", type: "ordinary", scheduledStart: "", scheduledEnd: "", chairId: 0, secretaryId: 0, quorumRequired: 0 });
 
   const sessionsQuery = (trpc as any).admin?.plenary?.listSessions?.useQuery?.({ status: statusFilter || undefined, limit: 50 }) ?? { data: [], isLoading: false };
   const resolutionsQuery = (trpc as any).admin?.plenary?.listResolutions?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
   const statsQuery = (trpc as any).admin?.plenary?.stats?.useQuery?.() ?? { data: {} };
 
   const createSession = (trpc as any).admin?.plenary?.createSession?.useMutation?.({
-    onSuccess: () => { toast.success("Session created"); setCreateOpen(false); sessionsQuery.refetch?.(); setNewSession({ title: "", description: "", type: "ordinary", scheduledStart: "", scheduledEnd: "", chairId: 0, secretaryId: 0 }); },
+    onSuccess: () => { toast.success("Session created"); setCreateOpen(false); sessionsQuery.refetch?.(); setNewSession({ title: "", description: "", type: "ordinary", scheduledStart: "", scheduledEnd: "", chairId: 0, secretaryId: 0, quorumRequired: 0 }); },
     onError: (err: Error) => toast.error(err.message),
   }) ?? { mutate: () => {}, isPending: false };
 
@@ -65,9 +65,10 @@ export default function AdminPlenary() {
               <div className="space-y-4">
                 <div><label className="text-sm font-medium text-[#1B355E]">Title *</label><Input value={newSession.title} onChange={(e) => setNewSession({ ...newSession, title: e.target.value })} placeholder="Session title" className="mt-1" /></div>
                 <div><label className="text-sm font-medium text-[#1B355E]">Description</label><Input value={newSession.description} onChange={(e) => setNewSession({ ...newSession, description: e.target.value })} placeholder="Brief description" className="mt-1" /></div>
-                <div><label className="text-sm font-medium text-[#1B355E]">Type</label><Select value={newSession.type} onValueChange={(v) => setNewSession({ ...newSession, type: v })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ordinary">Ordinary</SelectItem><SelectItem value="extraordinary">Extraordinary</SelectItem><SelectItem value="annual">Annual General</SelectItem></SelectContent></Select></div>
+                <div><label className="text-sm font-medium text-[#1B355E]">Type</label><Select value={newSession.type} onValueChange={(v) => setNewSession({ ...newSession, type: v })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ordinary">Ordinary Plenary</SelectItem><SelectItem value="extraordinary">Extraordinary Plenary</SelectItem><SelectItem value="annual">NGA — Annual General Assembly (§8.1)</SelectItem><SelectItem value="presidents_session">Presidents' Session (§8.9)</SelectItem><SelectItem value="standing_committee">Standing Committee Session (§10.2)</SelectItem></SelectContent></Select></div>
+                <div><label className="text-sm font-medium text-[#1B355E]">Quorum Required (§8.1.8)</label><Input type="number" value={newSession.quorumRequired || ""} onChange={(e) => setNewSession({ ...newSession, quorumRequired: Number(e.target.value) })} placeholder="1/3 of Permanent+Temporary LCs" className="mt-1" /></div>
                 <div className="grid grid-cols-2 gap-4"><div><label className="text-sm font-medium text-[#1B355E]">Start</label><Input type="datetime-local" value={newSession.scheduledStart} onChange={(e) => setNewSession({ ...newSession, scheduledStart: e.target.value })} className="mt-1" /></div><div><label className="text-sm font-medium text-[#1B355E]">End</label><Input type="datetime-local" value={newSession.scheduledEnd} onChange={(e) => setNewSession({ ...newSession, scheduledEnd: e.target.value })} className="mt-1" /></div></div>
-                <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button><Button className="bg-[#138A73] text-white" onClick={() => createSession.mutate({ ...newSession, scheduledStart: new Date(newSession.scheduledStart), scheduledEnd: new Date(newSession.scheduledEnd), chairId: newSession.chairId || 1, secretaryId: newSession.secretaryId || 1 })} disabled={!newSession.title || !newSession.scheduledStart || createSession.isPending}>Create</Button></div>
+                <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button><Button className="bg-[#138A73] text-white" onClick={() => createSession.mutate({ ...newSession, scheduledStart: new Date(newSession.scheduledStart), scheduledEnd: new Date(newSession.scheduledEnd), chairId: newSession.chairId || 1, secretaryId: newSession.secretaryId || 1, quorumRequired: newSession.quorumRequired || undefined })} disabled={!newSession.title || !newSession.scheduledStart || createSession.isPending}>Create</Button></div>
               </div>
             </div>
           </div>
@@ -144,6 +145,9 @@ export default function AdminPlenary() {
                           {session.description && <p className="text-sm text-[#5D7086] mt-1">{session.description}</p>}
                         </div>
                         <Badge className={`ml-3 border ${getStatusColor(session.status)}`}>{session.status?.replace(/_/g, " ")}</Badge>
+                        {session.type === "annual" && <Badge className="ml-1 border bg-blue-100 text-blue-700 border-blue-200">§8.1 NGA</Badge>}
+                        {session.type === "presidents_session" && <Badge className="ml-1 border bg-purple-100 text-purple-700 border-purple-200">§8.9</Badge>}
+                        {session.type === "standing_committee" && <Badge className="ml-1 border bg-amber-100 text-amber-700 border-amber-200">§10.2 SC</Badge>}
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-sm text-[#5D7086]">
                         <div><span className="text-[#8A9BAE]">Start:</span> {new Date(session.scheduledStart).toLocaleString()}</div>

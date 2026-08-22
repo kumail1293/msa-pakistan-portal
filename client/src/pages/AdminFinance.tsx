@@ -222,6 +222,9 @@ export default function AdminFinance() {
                       <p className={`font-semibold ${tx.type === "income" ? "text-green-600" : "text-red-600"}`}>
                         {tx.type === "income" ? "+" : "-"}{formatPKR(tx.amount)}
                       </p>
+                      {tx.approvalTier && (
+                        <p className="text-[10px] text-[#8A9BAE]">§15.4: {tx.approvalTier === "vpf" ? "VPF ≤5K" : tx.approvalTier === "president" ? "President ≤15K" : "EB 2/3 majority"}</p>
+                      )}
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${STATUS_COLORS[tx.status] ?? "bg-gray-100 text-gray-600"}`}>
                         {tx.status?.replace(/_/g, " ")}
                       </span>

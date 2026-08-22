@@ -15,6 +15,8 @@ export default function MemberActivities() {
   const [, navigate] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterLevel, setFilterLevel] = useState<string>("all");
+  const [filterSc, setFilterSc] = useState<string>("all");
 
   const activitiesQuery = (trpc as any).activities?.list?.useQuery?.({ limit: 50 }) ?? { data: [], isLoading: false };
   const myRegsQuery = (trpc as any).activities?.myRegistrations?.useQuery?.() ?? { data: [], isLoading: false };
@@ -31,12 +33,16 @@ export default function MemberActivities() {
   const registeredIds = new Set(myRegistrations.map((r: any) => r.activityId));
 
   const types = Array.from(new Set(activities.map((a) => a.type).filter(Boolean)));
+  const levels = Array.from(new Set(activities.map((a) => a.activityLevel).filter(Boolean)));
+  const standingCommittees = Array.from(new Set(activities.map((a) => a.standingCommittee).filter(Boolean)));
 
   const filtered = activities.filter((a) => {
     const matchesSearch = (a.title ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (a.description ?? "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || a.type === filterType;
-    return matchesSearch && matchesType;
+    const matchesLevel = filterLevel === "all" || a.activityLevel === filterLevel;
+    const matchesSc = filterSc === "all" || a.standingCommittee === filterSc;
+    return matchesSearch && matchesType && matchesLevel && matchesSc;
   });
 
   const getTypeColor = (type: string | null) => {
@@ -97,6 +103,31 @@ export default function MemberActivities() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterLevel} onValueChange={setFilterLevel}>
+            <SelectTrigger className="h-12">
+              <SelectValue placeholder="Level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Levels</SelectItem>
+              <SelectItem value="local">Local</SelectItem>
+              <SelectItem value="national">National</SelectItem>
+              <SelectItem value="regional">Regional</SelectItem>
+              <SelectItem value="international">International</SelectItem>
+            </SelectContent>
+          </Select>
+          {standingCommittees.length > 0 && (
+            <Select value={filterSc} onValueChange={setFilterSc}>
+              <SelectTrigger className="h-12">
+                <SelectValue placeholder="Standing Committee" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All SCs</SelectItem>
+                {standingCommittees.map((sc) => (
+                  <SelectItem key={sc} value={sc}>{sc}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {activitiesQuery.isLoading ? (
@@ -123,11 +154,28 @@ export default function MemberActivities() {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-[#1B355E]">{activity.title}</h3>
-                        {activity.type && (
-                          <Badge className={`mt-1 border ${getTypeColor(activity.type)}`}>
-                            {activity.type.charAt(0).toUpperCase() + activity.type.slice(1)}
-                          </Badge>
-                        )}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {activity.type && (
+                            <Badge className={`border ${getTypeColor(activity.type)}`}>
+                              {activity.type.charAt(0).toUpperCase() + activity.type.slice(1)}
+                            </Badge>
+                          )}
+                          {activity.activityLevel && (
+                            <Badge className="border bg-blue-50 text-blue-700 border-blue-200">
+                              {activity.activityLevel} (§16)
+                            </Badge>
+                          )}
+                          {activity.standingCommittee && (
+                            <Badge className="border bg-purple-50 text-purple-700 border-purple-200">
+                              {activity.standingCommittee}
+                            </Badge>
+                          )}
+                          {activity.certificateIssued && (
+                            <Badge className="border bg-emerald-50 text-emerald-700 border-emerald-200">
+                              ✓ Certified
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {activity.description && (

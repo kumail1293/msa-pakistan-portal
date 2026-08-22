@@ -87,6 +87,9 @@ export default function AdminActivities() {
     description: "",
     type: "workshop",
     category: "",
+    activityLevel: "local" as "local" | "national" | "regional" | "international",
+    standingCommittee: "",
+    coordinators: "",
     startDate: "",
     endDate: "",
     venue: "",
@@ -112,7 +115,7 @@ export default function AdminActivities() {
       setCreateOpen(false);
       activities.refetch();
       stats.refetch();
-      setNewActivity({ title: "", description: "", type: "workshop", category: "", startDate: "", endDate: "", venue: "", city: "", mode: "in_person", budget: 0, maxParticipants: 0 });
+      setNewActivity({ title: "", description: "", type: "workshop", category: "", activityLevel: "local", standingCommittee: "", coordinators: "", startDate: "", endDate: "", venue: "", city: "", mode: "in_person", budget: 0, maxParticipants: 0 });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -211,6 +214,37 @@ export default function AdminActivities() {
                 </Select>
               </div>
               <div>
+                <label className="text-sm font-medium text-[#1B355E]">Activity Level *</label>
+                <Select value={newActivity.activityLevel} onValueChange={(v: any) => setNewActivity({ ...newActivity, activityLevel: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="local">Local (1-2 LCs, §16.6)</SelectItem>
+                    <SelectItem value="national">National (EBTO/≥3 LCs, §16.7)</SelectItem>
+                    <SelectItem value="regional">Regional (2 NMOs, §16.8)</SelectItem>
+                    <SelectItem value="international">International (§16.9)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[#1B355E]">Standing Committee</label>
+                <Select value={newActivity.standingCommittee} onValueChange={(v) => setNewActivity({ ...newActivity, standingCommittee: v })}>
+                  <SelectTrigger><SelectValue placeholder="None (General)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="SCOPH">SCOPH — Public Health</SelectItem>
+                    <SelectItem value="SCORA">SCORA — Sexual & Reproductive Health</SelectItem>
+                    <SelectItem value="SCOME">SCOME — Medical Education</SelectItem>
+                    <SelectItem value="SCORP">SCORP — Human Rights & Peace</SelectItem>
+                    <SelectItem value="SCOPE">SCOPE — Professional Exchange</SelectItem>
+                    <SelectItem value="SCORE">SCORE — Research Exchange</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[#1B355E]">Coordinators (max 3, comma-separated IDs)</label>
+                <Input value={newActivity.coordinators} onChange={(e) => setNewActivity({ ...newActivity, coordinators: e.target.value })} placeholder="e.g. 1, 2, 3" />
+              </div>
+              <div>
                 <label className="text-sm font-medium text-[#1B355E]">Category</label>
                 <Select value={newActivity.category || "regular"} onValueChange={(v) => setNewActivity({ ...newActivity, category: v })}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
@@ -259,7 +293,7 @@ export default function AdminActivities() {
               </div>
               <div className="sm:col-span-2 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-                <Button className="bg-[#138A73] hover:bg-[#106E5B] text-white" onClick={() => createActivity.mutate({ ...newActivity })} disabled={!newActivity.title || createActivity.isPending}>
+                <Button className="bg-[#138A73] hover:bg-[#106E5B] text-white" onClick={() => createActivity.mutate({ ...newActivity, coordinators: newActivity.coordinators ? newActivity.coordinators.split(",").map(Number).filter(Boolean) : undefined })} disabled={!newActivity.title || createActivity.isPending}>
                   {createActivity.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Create Activity
                 </Button>
@@ -497,11 +531,21 @@ export default function AdminActivities() {
           </DialogHeader>
           {selectedActivity && (
             <div className="space-y-4 py-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h2 className="text-xl font-bold text-[#1B355E]">{selectedActivity.title}</h2>
                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold uppercase ${STATUS_COLORS[selectedActivity.status] ?? "bg-gray-100 text-gray-600"}`}>
                   {selectedActivity.status?.replace(/_/g, " ")}
                 </span>
+                {selectedActivity.activityLevel && (
+                  <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold uppercase bg-blue-100 text-blue-700">
+                    {selectedActivity.activityLevel}
+                  </span>
+                )}
+                {selectedActivity.standingCommittee && (
+                  <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold uppercase bg-purple-100 text-purple-700">
+                    {selectedActivity.standingCommittee}
+                  </span>
+                )}
               </div>
               {selectedActivity.description && (
                 <p className="text-sm text-[#5D7086] leading-6">{selectedActivity.description}</p>
@@ -539,6 +583,32 @@ export default function AdminActivities() {
                   <p className="text-[#8A9BAE] text-xs">Category</p>
                   <p className="font-semibold text-[#1B355E] capitalize">{selectedActivity.category || "Regular"}</p>
                 </div>
+                <div className="rounded-lg border border-[#E7F4F0] p-3">
+                  <p className="text-[#8A9BAE] text-xs">Activity Level (§16)</p>
+                  <p className="font-semibold text-[#1B355E] capitalize">{selectedActivity.activityLevel || "Local"}</p>
+                </div>
+                <div className="rounded-lg border border-[#E7F4F0] p-3">
+                  <p className="text-[#8A9BAE] text-xs">Standing Committee (§10)</p>
+                  <p className="font-semibold text-[#1B355E]">{selectedActivity.standingCommittee || "General"}</p>
+                </div>
+                {selectedActivity.coordinators && (
+                  <div className="rounded-lg border border-[#E7F4F0] p-3">
+                    <p className="text-[#8A9BAE] text-xs">Coordinators (max 3, §16.5)</p>
+                    <p className="font-semibold text-[#1B355E]">{Array.isArray(selectedActivity.coordinators) ? selectedActivity.coordinators.join(", ") : selectedActivity.coordinators}</p>
+                  </div>
+                )}
+                {selectedActivity.budgetApprovedAt && (
+                  <div className="rounded-lg border border-[#E7F4F0] p-3">
+                    <p className="text-[#8A9BAE] text-xs">Budget Approved (§16.14)</p>
+                    <p className="font-semibold text-emerald-600">VPF + President approved</p>
+                  </div>
+                )}
+                {selectedActivity.certificateIssued && (
+                  <div className="rounded-lg border border-[#E7F4F0] p-3">
+                    <p className="text-[#8A9BAE] text-xs">Certificate (§16.10)</p>
+                    <p className="font-semibold text-emerald-600">✓ Issued after NRF</p>
+                  </div>
+                )}
               </div>
 
               {/* Quick Status Actions */}
