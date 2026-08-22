@@ -49,11 +49,32 @@ type Official = {
   createdAt: Date;
 };
 
+/** Position badge colors — grouped by body */
 const POSITION_META: Record<string, string> = {
-  "national-president": "bg-[#1B355E] text-white",
+  // Executive Board
+  president: "bg-[#1B355E] text-white",
+  vpi: "bg-[#3B5B8C] text-white",
+  vpe: "bg-[#4A6FA5] text-white",
+  vpa: "bg-[#138A73] text-white",
+  vpcb: "bg-[#5B8C5A] text-white",
+  vpm: "bg-[#7B5EA7] text-white",
+  vpf: "bg-[#B8860B] text-white",
+  vpprc: "bg-[#C0504D] text-white",
+  // Supervising Council
   supco: "bg-[#106E5B] text-white",
-  "vice-president": "bg-[#3B5B8C] text-white",
+  // Team of Officials
+  npo: "bg-[#2E8B57] text-white",
+  norp: "bg-[#4682B4] text-white",
+  nora: "bg-[#DB7093] text-white",
+  nome: "bg-[#9370DB] text-white",
+  nore: "bg-[#20B2AA] text-white",
+  neo: "bg-[#F4A460] text-black",
+  // LC/CI
   "lc-president": "bg-[#7A5C1E] text-white",
+  "lc-vpa": "bg-[#8B7355] text-white",
+  "lc-vpf": "bg-[#A0522D] text-white",
+  "lc-secretary": "bg-[#696969] text-white",
+  "ci-coordinator": "bg-[#556B2F] text-white",
 };
 
 function initialsOf(name: string | null | undefined): string {
@@ -260,10 +281,26 @@ export default function OfficialsManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {position === "vice-president" && (
+              {["vpi", "vpe", "vpa", "vpcb", "vpm", "vpf", "vpprc"].includes(position) && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="off-domain" className="text-xs font-bold text-[#1B355E]">Domain (e.g. Members, Finance)</Label>
-                  <Input id="off-domain" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Members" className="h-10" />
+                  <Label htmlFor="off-domain" className="text-xs font-bold text-[#1B355E]">Domain</Label>
+                  <Input id="off-domain" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="e.g. Internal Affairs, Activities" className="h-10" />
+                </div>
+              )}
+              {["npo", "norp", "nora", "nome", "nore", "neo"].includes(position) && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-[#1B355E]">Standing Committee (§12.1)</Label>
+                  <Select value={domain} onValueChange={setDomain}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Select SC" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SCOPH">SCOPH — Public Health</SelectItem>
+                      <SelectItem value="SCORA">SCORA — Sexual & Reproductive Health</SelectItem>
+                      <SelectItem value="SCOME">SCOME — Medical Education</SelectItem>
+                      <SelectItem value="SCORP">SCORP — Human Rights & Peace</SelectItem>
+                      <SelectItem value="SCOPE">SCOPE — Professional Exchange</SelectItem>
+                      <SelectItem value="SCORE">SCORE — Research Exchange</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
               {position === "lc-president" && (
@@ -385,7 +422,7 @@ export default function OfficialsManagement() {
                 onUpdate={(fields) => updateOfficial.mutate({ userId: official.id, ...fields })}
                 onToggleActive={() => updateOfficial.mutate({ userId: official.id, active: !official.active })}
                 onSetModules={(mods) =>
-                  saveModuleGrants.mutate({ userId: official.id, modules: mods })
+                  saveModuleGrants.mutate({ userId: official.id, modules: mods as any })
                 }
                 onResetPassword={() => resetPassword.mutate({ userId: official.id })}
                 resetLink={resetLinkFor[official.id] ?? null}
@@ -415,7 +452,7 @@ function OfficialRow({
   onToggle: () => void;
   onUpdate: (fields: Record<string, unknown>) => void;
   onToggleActive: () => void;
-  onSetModules: (modules: (typeof OFFICIAL_MODULES)[number][]) => void;
+  onSetModules: (modules: string[]) => void;
   onResetPassword: () => void;
   resetLink: string | null;
   busy: boolean;
@@ -424,8 +461,8 @@ function OfficialRow({
   const [positionDraft, setPositionDraft] = useState(official.officialPosition ?? OFFICIAL_POSITIONS[0]);
   const [domainDraft, setDomainDraft] = useState(official.domain ?? "");
   const [councilDraft, setCouncilDraft] = useState(official.localCouncil ?? "");
-  const [moduleDraft, setModuleDraft] = useState<(typeof OFFICIAL_MODULES)[number][]>(
-    official.moduleAccess as (typeof OFFICIAL_MODULES)[number][]
+  const [moduleDraft, setModuleDraft] = useState<string[]>(
+    (official.moduleAccess ?? []) as string[]
   );
   const positionBadge = official.officialPosition
     ? POSITION_META[official.officialPosition] ?? "bg-[#5D7086] text-white"

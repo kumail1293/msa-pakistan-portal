@@ -14,29 +14,78 @@
  *                the power to provision/delegate any official
  */
 
+/** Positions — per bylaws §9.1 */
 export const OFFICIAL_POSITIONS = [
+  // Executive Board (§9.1.1)
+  "president",
+  "vpi",
+  "vpe",
+  "vpa",
+  "vpcb",
+  "vpm",
+  "vpf",
+  "vpprc",
+  // Supervising Council (§9.3)
   "supco",
-  "national-president",
-  "vice-president",
+  // Team of Officials (§9.1.4)
+  "npo",
+  "norp",
+  "nora",
+  "nome",
+  "nore",
+  "neo",
+  // LC/CI positions
   "lc-president",
+  "lc-vpa",
+  "lc-vpf",
+  "lc-secretary",
+  "ci-coordinator",
 ] as const;
 export type OfficialPosition = (typeof OFFICIAL_POSITIONS)[number];
 
 /** Module keys grantable to officials. "officials" is super-admin reserved. */
 export const OFFICIAL_MODULES = [
-  "recruitment",
-  "card-queue",
+  "dashboard",
+  "activities",
+  "events",
+  "elections",
+  "finance",
+  "documents",
+  "communications",
+  "plenary",
+  "nef-nrf",
   "config",
-  "interviews",
+  "modules",
+  "governance",
+  "governance-config",
   "lifecycle",
+  "cards",
+  "audit",
 ] as const;
 export type OfficialModule = (typeof OFFICIAL_MODULES)[number];
 
+/** Human-readable position labels — per bylaws §9.1, §11.5-11.9, §12.1 */
 export const OFFICIAL_POSITION_LABELS: Record<string, string> = {
-  supco: "SUPCO Member",
-  "national-president": "National President",
-  "vice-president": "Vice President",
+  president: "National President",
+  vpi: "Vice-President for Internal Affairs",
+  vpe: "Vice-President for External Affairs",
+  vpa: "Vice-President for Activities",
+  vpcb: "Vice-President for Capacity Building",
+  vpm: "Vice-President for Members (Secretary General)",
+  vpf: "Vice-President for Finances",
+  vpprc: "Vice-President for Public Relations & Communication",
+  supco: "Supervising Council Member",
+  npo: "National Public Health Officer (SCOPH)",
+  norp: "National Officer on Human Rights & Peace (SCORP)",
+  nora: "National Officer on Sexual & Reproductive Health (SCORA)",
+  nome: "National Officer on Medical Education (SCOME)",
+  nore: "National Officer on Research Exchange (SCORE)",
+  neo: "National Exchange Officer (SCOPE)",
   "lc-president": "Local Council President",
+  "lc-vpa": "Local VPA",
+  "lc-vpf": "Local VPF",
+  "lc-secretary": "Local Secretary",
+  "ci-coordinator": "Coordinator Institute Coordinator",
 };
 
 export const OFFICIAL_MODULE_LABELS: Record<string, string> = {

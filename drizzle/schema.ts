@@ -52,14 +52,45 @@ export const users = mysqlTable(
     role: mysqlEnum("role", ["user", "admin", "superadmin", "official"]).default("user"),
     // ============ OFFICIAL PORTAL FIELDS (provisioned by the super admin) ============
     officialPosition: mysqlEnum("officialPosition", [
+      // Executive Board (§9.1.1) — 9 positions
+      "president",
+      "vpi", // Vice-President for Internal Affairs
+      "vpe", // Vice-President for External Affairs
+      "vpa", // Vice-President for Activities
+      "vpcb", // Vice-President for Capacity Building
+      "vpm", // Vice-President for Members (also Secretary General)
+      "vpf", // Vice-President for Finances
+      "vpprc", // Vice-President for Public Relations & Communication
+      // Supervising Council (§9.3) — 2-3 members
       "supco",
-      "national-president",
-      "vice-president",
+      // Team of Officials (§9.1.4) — 6 positions
+      "npo", // National Public Health Officer (SCOPH)
+      "norp", // National Officer on Human Rights & Peace (SCORP)
+      "nora", // National Officer on Sexual & Reproductive Health (SCORA)
+      "nome", // National Officer on Medical Education (SCOME)
+      "nore", // National Officer on Research Exchange (SCORE)
+      "neo", // National Exchange Officer (SCOPE)
+      // LC/CI positions
       "lc-president",
+      "lc-vpa",
+      "lc-vpf",
+      "lc-secretary",
+      "ci-coordinator",
+      // Legacy
+      "admin",
+      "superadmin",
+      "official",
     ]),
     domain: varchar("domain", { length: 100 }),
     // Modules the super admin has opened for this official (empty for members).
     moduleAccess: json("moduleAccess").$type<string[]>(),
+    // Standing Committee assignment for TO officers (§12.1)
+    standingCommittee: varchar("standingCommittee", { length: 50 }), // SCOPH, SCORA, SCOME, SCORP, SCOPE, SCORE
+    // Term tracking (§9.2.1: Oct 1 - Sep 30)
+    termStart: timestamp("termStart"),
+    termEnd: timestamp("termEnd"),
+    // LC/CI affiliation for LC officers
+    affiliatedChapterId: int("affiliatedChapterId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn"),

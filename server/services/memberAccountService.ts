@@ -189,6 +189,10 @@ export function upsertUser(input: {
   officialPosition?: User["officialPosition"] | null;
   domain?: string | null;
   moduleAccess?: string[] | null;
+  standingCommittee?: string | null;
+  termStart?: Date | null;
+  termEnd?: Date | null;
+  affiliatedChapterId?: number | null;
 }): StoredUser {
   const existing = getByOpenId(input.openId);
   if (existing) {
@@ -243,6 +247,10 @@ export function upsertUser(input: {
     officialPosition: input.officialPosition ?? null,
     domain: input.domain ?? null,
     moduleAccess: input.moduleAccess ?? null,
+    standingCommittee: input.standingCommittee ?? null,
+    termStart: input.termStart ?? null,
+    termEnd: input.termEnd ?? null,
+    affiliatedChapterId: input.affiliatedChapterId ?? null,
     createdAt: now,
     updatedAt: now,
     lastSignedIn: input.lastSignedIn ?? null,
@@ -382,12 +390,36 @@ export function recordLastSignIn(userId: number) {
 // the super admin can also open any module for any official so work can be
 // delegated when someone is absent.
 
-/** Positions an official account can hold (minimal set; more later). */
+/** Positions an official account can hold — per bylaws §9.1 */
 export const OFFICIAL_POSITIONS = [
+  // Executive Board (§9.1.1) — 9 positions
+  "president",
+  "vpi",
+  "vpe",
+  "vpa",
+  "vpcb",
+  "vpm",
+  "vpf",
+  "vpprc",
+  // Supervising Council (§9.3)
   "supco",
-  "national-president",
-  "vice-president",
+  // Team of Officials (§9.1.4) — 6 positions
+  "npo",
+  "norp",
+  "nora",
+  "nome",
+  "nore",
+  "neo",
+  // LC/CI positions
   "lc-president",
+  "lc-vpa",
+  "lc-vpf",
+  "lc-secretary",
+  "ci-coordinator",
+  // Legacy
+  "admin",
+  "superadmin",
+  "official",
 ] as const;
 export type OfficialPosition = (typeof OFFICIAL_POSITIONS)[number];
 
@@ -406,18 +438,48 @@ export const OFFICIAL_MODULES = [
 export type OfficialModule = (typeof OFFICIAL_MODULES)[number];
 
 export const OFFICIAL_POSITION_LABELS: Record<OfficialPosition, string> = {
-  supco: "SUPCO Member",
-  "national-president": "National President",
-  "vice-president": "Vice President",
+  president: "National President",
+  vpi: "Vice-President for Internal Affairs",
+  vpe: "Vice-President for External Affairs",
+  vpa: "Vice-President for Activities",
+  vpcb: "Vice-President for Capacity Building",
+  vpm: "Vice-President for Members (Secretary General)",
+  vpf: "Vice-President for Finances",
+  vpprc: "Vice-President for Public Relations & Communication",
+  supco: "Supervising Council Member",
+  npo: "National Public Health Officer (SCOPH)",
+  norp: "National Officer on Human Rights & Peace (SCORP)",
+  nora: "National Officer on Sexual & Reproductive Health (SCORA)",
+  nome: "National Officer on Medical Education (SCOME)",
+  nore: "National Officer on Research Exchange (SCORE)",
+  neo: "National Exchange Officer (SCOPE)",
   "lc-president": "Local Council President",
+  "lc-vpa": "Local VPA",
+  "lc-vpf": "Local VPF",
+  "lc-secretary": "Local Secretary",
+  "ci-coordinator": "Coordinator Institute Coordinator",
+  admin: "Admin",
+  superadmin: "Super Admin",
+  official: "Official",
 };
 
 export const OFFICIAL_MODULE_LABELS: Record<string, string> = {
-  recruitment: "Recruitment Dashboard",
-  "card-queue": "Card Issuance Queue",
+  dashboard: "Dashboard",
+  activities: "Activities",
+  events: "Events",
+  elections: "Elections",
+  finance: "Finance",
+  documents: "Documents",
+  communications: "Communications",
+  plenary: "Plenary",
+  "nef-nrf": "NEF/NRF",
   config: "System Configuration",
-  interviews: "Interview Scheduling",
+  modules: "Modules",
+  governance: "Governance",
+  "governance-config": "Governance Config",
   lifecycle: "Membership Lifecycle",
+  cards: "Card Issuance Queue",
+  audit: "Audit",
   officials: "Officials Management",
 };
 
@@ -435,8 +497,27 @@ export function isOfficialRole(role: string | null | undefined): boolean {
  * official module; officials only see exactly what the super admin granted
  * them via moduleAccess.
  */
+/** Position → module mapping per bylaws §11.5, §11.8, §11.9, §12.1 */
+const POSITION_MODULE_MAP: Record<string, string[]> = {
+  president: ["dashboard", "activities", "events", "elections", "finance", "documents", "communications", "plenary", "nef-nrf", "config", "modules", "governance", "governance-config", "lifecycle", "cards", "audit"],
+  vpa: ["activities", "nef-nrf", "events"],
+  vpf: ["finance"],
+  vpprc: ["communications", "documents"],
+  vpi: ["lifecycle", "officials", "governance"],
+  vpe: ["communications"],
+  vpcb: ["activities"],
+  vpm: ["documents", "governance"],
+  supco: ["dashboard", "activities", "events", "elections", "finance", "documents", "communications", "plenary", "nef-nrf", "config", "modules", "governance", "governance-config", "lifecycle", "cards", "audit"],
+  npo: ["activities"], // SCOPH
+  norp: ["activities"], // SCORP
+  nora: ["activities"], // SCORA
+  nome: ["activities"], // SCOME
+  nore: ["activities"], // SCORE
+  neo: ["activities"], // SCOPE
+};
+
 export function canAccessModule(
-  user: Pick<StoredUser, "role" | "moduleAccess"> | null | undefined,
+  user: Pick<StoredUser, "role" | "moduleAccess" | "officialPosition"> | null | undefined,
   module: string
 ): boolean {
   if (!user) return false;
@@ -446,6 +527,12 @@ export function canAccessModule(
     return (OFFICIAL_MODULES as readonly string[]).includes(module);
   }
   if (user.role === "official") {
+    // Check position-based access first
+    const pos = user.officialPosition;
+    if (pos && POSITION_MODULE_MAP[pos]) {
+      if (POSITION_MODULE_MAP[pos].includes(module)) return true;
+    }
+    // Fall back to explicit moduleAccess grants
     return (user.moduleAccess ?? []).includes(module);
   }
   return false;
