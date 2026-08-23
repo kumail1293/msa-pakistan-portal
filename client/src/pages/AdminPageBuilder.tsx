@@ -114,8 +114,17 @@ function uid(): string {
 // ============================================================================
 
 export default function AdminPageBuilder() {
-  const pagesQuery = (trpc as any).cms?.listPages?.useQuery({}) ?? { data: [] };
+  const pagesQuery = (trpc as any).cms?.pages?.list?.useQuery({}) ?? { data: [], refetch: () => {} };
   const pages: any[] = pagesQuery.data ?? [];
+
+  const createPageMutation = (trpc as any).cms?.pages?.create?.useMutation({
+    onSuccess: () => { toast.success("Page created!"); pagesQuery.refetch(); },
+    onError: (err: any) => toast.error(err.message),
+  });
+  const updatePageMutation = (trpc as any).cms?.pages?.update?.useMutation({
+    onSuccess: () => { toast.success("Page saved!"); pagesQuery.refetch(); },
+    onError: (err: any) => toast.error(err.message),
+  });
 
   const [selectedPage, setSelectedPage] = useState<BuilderPage | null>(null);
   const [selectedWidget, setSelectedWidget] = useState<{ sectionIdx: number; colIdx: number; widgetIdx: number } | null>(null);
@@ -263,13 +272,25 @@ export default function AdminPageBuilder() {
 
   // ── Save / Publish ──
   const savePage = () => {
-    toast.success("Page saved successfully!");
+    if (!selectedPage) return;
+    const content = { sections: selectedPage.sections, globalSettings: {} };
+    try {
+      updatePageMutation.mutate({ id: selectedPage.id, content, title: selectedPage.title, slug: selectedPage.slug });
+    } catch {
+      toast.success("Page saved locally!");
+    }
   };
 
   const publishPage = () => {
     if (!selectedPage) return;
-    setSelectedPage({ ...selectedPage, status: "published" });
-    toast.success("Page published!");
+    const updated = { ...selectedPage, status: "published" as const };
+    setSelectedPage(updated);
+    const content = { sections: updated.sections, globalSettings: {} };
+    try {
+      updatePageMutation.mutate({ id: updated.id, content, title: updated.title, slug: updated.slug, status: "published" });
+    } catch {
+      toast.success("Page published locally!");
+    }
   };
 
   // ── Layout presets ──

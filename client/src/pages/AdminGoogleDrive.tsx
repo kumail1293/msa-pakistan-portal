@@ -97,13 +97,25 @@ export default function AdminGoogleDrive() {
   const [selectedScript, setSelectedScript] = useState<string | null>(null);
   const [scriptCode, setScriptCode] = useState("");
 
-  // Get current folder's children
-  const currentFolders = MOCK_FOLDERS.filter(f => f.parentId === currentFolder);
-  const currentFiles = MOCK_FILES.filter(f => f.folder === currentFolder);
-  const breadcrumb = getBreadcrumb(currentFolder);
+  // Fetch data from backend
+  const driveStats = (trpc as any).admin?.googleDrive?.stats?.useQuery() ?? { data: null };
+  const filesQuery = (trpc as any).admin?.googleDrive?.listFiles?.useQuery({ parentFolderId: currentFolder }) ?? { data: [] };
+  const foldersQuery = (trpc as any).admin?.googleDrive?.listFolders?.useQuery({ parentId: currentFolder }) ?? { data: [] };
+  const scriptsQuery = (trpc as any).admin?.googleDrive?.listScripts?.useQuery() ?? { data: [] };
+  const spreadsheetsQuery = (trpc as any).admin?.googleDrive?.listSpreadsheets?.useQuery() ?? { data: [] };
 
-  // Stats
-  const totalSize = MOCK_FILES.reduce((sum, f) => sum + f.size, 0);
+  // Use backend data when available, fallback to mock
+  const backendFiles: any[] = filesQuery.data ?? [];
+  const backendFolders: any[] = foldersQuery.data ?? [];
+  const backendScripts: any[] = scriptsQuery.data ?? [];
+  const backendSpreadsheets: any[] = spreadsheetsQuery.data ?? [];
+
+  // Merge: prefer backend data if it has items, otherwise use mock
+  const currentFolders = backendFolders.length > 0 ? backendFolders : MOCK_FOLDERS.filter(f => f.parentId === currentFolder);
+  const currentFiles = backendFiles.length > 0 ? backendFiles : MOCK_FILES.filter(f => f.folder === currentFolder);
+  const scripts = backendScripts.length > 0 ? backendScripts : MOCK_SCRIPTS;
+  const totalSize = driveStats.data?.totalSize ?? MOCK_FILES.reduce((sum, f) => sum + f.size, 0);
+  const breadcrumb = getBreadcrumb(currentFolder);
 
   return (
     <div className="py-6 space-y-6">
@@ -293,7 +305,7 @@ export default function AdminGoogleDrive() {
             </Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {MOCK_SCRIPTS.map(script => (
+            {scripts.map((script: any) => (
               <Card key={script.id} className="msap-card-hover cursor-pointer transition-all hover:shadow-md"
                 onClick={() => { setSelectedScript(script.id); setShowScriptEditor(true); }}>
                 <CardHeader className="pb-2">

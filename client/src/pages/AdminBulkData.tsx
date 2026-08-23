@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { trpc } from "@/lib/trpc";
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";
@@ -192,9 +193,27 @@ export default function AdminBulkData() {
 
   const entity = ENTITY_CONFIGS.find(e => e.key === selectedEntity)!;
 
-  // Initialize data when entity changes
+  // Fetch data from backend
+  const spreadsheetData = (trpc as any).admin?.googleDrive?.getSpreadsheetData?.useQuery(
+    { entityType: selectedEntity },
+    { enabled: selectedEntity !== "members" }
+  ) ?? { data: null };
+
+  // Initialize data when entity changes or backend data arrives
   useState(() => {
-    setEditData(JSON.parse(JSON.stringify(entity.data)));
+    const backendData = spreadsheetData.data;
+    if (backendData && Array.isArray(backendData) && backendData.length > 0) {
+      setEditData(backendData);
+    } else {
+      setEditData(JSON.parse(JSON.stringify(entity.data)));
+    }
+  });
+
+  // Sync with backend data when it arrives
+  useState(() => {
+    if (spreadsheetData.data && Array.isArray(spreadsheetData.data) && spreadsheetData.data.length > 0) {
+      setEditData(spreadsheetData.data);
+    }
   });
 
   const handleEntityChange = (key: string) => {
