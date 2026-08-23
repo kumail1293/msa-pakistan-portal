@@ -17,6 +17,9 @@ import { TRPCError } from "@trpc/server";
 import { sdk } from "./sdk";
 import { checkRateLimit, rateLimitKey } from "./rateLimit";
 import { childLogger } from "./logger";
+import { seedMockData, getMockDataStats } from "../config/mockDataSeeder";
+import { googleDriveEngine } from "../config/googleDriveEngine";
+import { documentUploadEngine } from "../config/documentUploadEngine";
 import { registerHealthRoutes, markReady } from "./health";
 
 const log = childLogger("Server");
@@ -160,12 +163,7 @@ async function startServer() {
   // Global catch-all AFTER every route: generic 500, full details server-side.
   registerErrorHandler(app);
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
-
-  if (port !== preferredPort) {
-    log.info({ preferredPort, port }, "Port busy — using alternative");
-  }
+  const port = 3000;
 
   // Pre-load branding defaults so sync getSmtpConfig() uses real values.
   await initEmailBranding();
@@ -175,6 +173,15 @@ async function startServer() {
 
     // Mark server ready for traffic (enables /health/ready and /health).
     markReady();
+
+    // Seed mock data and initialize engines
+    seedMockData().then(() => {
+      const stats = getMockDataStats();
+      log.info({ mockData: stats }, "Mock data seeded");
+    }).catch(err => log.warn({ err }, "Mock data seeding failed"));
+    documentUploadEngine.seedSampleDocuments();
+    log.info({ driveStats: googleDriveEngine.getStats() }, "Google Drive engine initialized");
+    log.info({ docStats: documentUploadEngine.getStats() }, "Document Upload engine initialized");
 
     // Real SMTP delivery, or the dev memory-outbox flush when SMTP is absent.
     if (isSmtpConfigured() || !ENV.isProduction) {

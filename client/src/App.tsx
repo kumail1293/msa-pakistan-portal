@@ -45,8 +45,40 @@ import MemberFinance from "./pages/MemberFinance";
 import MemberCommunications from "./pages/MemberCommunications";
 import AdminPlenary from "./pages/AdminPlenary";
 import AdminNEF from "./pages/AdminNEF";
+import AdminChapters from "./pages/AdminChapters";
+import AdminProjects from "./pages/AdminProjects";
+import AdminTraining from "./pages/AdminTraining";
+import AdminWorkflows from "./pages/AdminWorkflows";
+import AdminForms from "./pages/AdminForms";
+import AdminNotifications from "./pages/AdminNotifications";
+import AdminDisciplinary from "./pages/AdminDisciplinary";
+import AdminSafeguarding from "./pages/AdminSafeguarding";
+import AdminFeedback from "./pages/AdminFeedback";
+import AdminHelpdesk from "./pages/AdminHelpdesk";
+import AdminInventory from "./pages/AdminInventory";
+import AdminTravel from "./pages/AdminTravel";
+import AdminImportExport from "./pages/AdminImportExport";
+import AdminAnalytics from "./pages/AdminAnalytics";
+import AdminNga from "./pages/AdminNga";
+import AdminInstitutions from "./pages/AdminInstitutions";
+import AdminPrivacy from "./pages/AdminPrivacy";
+import AdminConsent from "./pages/AdminConsent";
+import AdminMfa from "./pages/AdminMfa";
+import AdminImpersonation from "./pages/AdminImpersonation";
+import AdminI18n from "./pages/AdminI18n";
+import AdminOps from "./pages/AdminOps";
+import AdminAccessibility from "./pages/AdminAccessibility";
+import AdminSaaS from "./pages/AdminSaaS";
+import AdminPageBuilder from "./pages/AdminPageBuilder";
+import AdminGoogleDrive from "./pages/AdminGoogleDrive";
+import AdminBulkData from "./pages/AdminBulkData";
+import NgaPortal from "./pages/NgaPortal";
 import MemberPlenary from "./pages/MemberPlenary";
 import MemberNEF from "./pages/MemberNEF";
+import MemberChapters from "./pages/MemberChapters";
+import MemberProjects from "./pages/MemberProjects";
+import MemberTraining from "./pages/MemberTraining";
+import MemberMeetings from "./pages/MemberMeetings";
 import SetPassword from "./pages/SetPassword";
 import VerifyCard from "./pages/VerifyCard";
 import SSOCallback from "./pages/SSOCallback";
@@ -65,6 +97,24 @@ function Router() {
       <Route path={"/verify"} component={VerifyCard} />
       {/* SSO Callback from WordPress */}
       <Route path={"/sso/callback"} component={SSOCallback} />
+
+      {/* NGA Portal — public landing when inactive, dashboard when active */}
+      <Route path="/nga" component={NgaPortal} />
+      <Route path="/nga/delegations">
+        <MemberLayout><NgaPortal /></MemberLayout>
+      </Route>
+      <Route path="/nga/agenda">
+        <MemberLayout><NgaPortal /></MemberLayout>
+      </Route>
+      <Route path="/nga/roll-call">
+        <MemberLayout><NgaPortal /></MemberLayout>
+      </Route>
+      <Route path="/nga/plenary">
+        <MemberLayout><MemberPlenary /></MemberLayout>
+      </Route>
+      <Route path="/nga/decisions">
+        <MemberLayout><NgaPortal /></MemberLayout>
+      </Route>
 
       {/* Member Routes (shared sidebar shell) — public visitors only get the
           landing page, sign in, set-password and the membership form */}
@@ -115,6 +165,26 @@ function Router() {
       <Route path={"/elections"}>
         <MemberLayout>
           <MemberElections />
+        </MemberLayout>
+      </Route>
+      <Route path={"/chapters"}>
+        <MemberLayout>
+          <MemberChapters />
+        </MemberLayout>
+      </Route>
+      <Route path={"/projects"}>
+        <MemberLayout>
+          <MemberProjects />
+        </MemberLayout>
+      </Route>
+      <Route path={"/training"}>
+        <MemberLayout>
+          <MemberTraining />
+        </MemberLayout>
+      </Route>
+      <Route path={"/meetings"}>
+        <MemberLayout>
+          <MemberMeetings />
         </MemberLayout>
       </Route>
       <Route path={"/plenary"}>
@@ -247,6 +317,163 @@ function Router() {
         <OfficialLayout>
           <AdminNEF />
         </OfficialLayout>
+      </Route>
+      <Route path={"/admin/chapters"}>
+        <OfficialLayout>
+          <AdminChapters />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/projects"}>
+        <OfficialLayout>
+          <AdminProjects />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/training"}>
+        <OfficialLayout>
+          <AdminTraining />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/workflows"}>
+        <OfficialLayout>
+          <AdminWorkflows />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/forms"}>
+        <OfficialLayout>
+          <AdminForms />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/notifications"}>
+        <OfficialLayout>
+          <AdminNotifications />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/disciplinary"}>
+        <OfficialLayout>
+          <AdminDisciplinary />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/safeguarding"}>
+        <OfficialLayout>
+          <AdminSafeguarding />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/feedback"}>
+        <OfficialLayout>
+          <AdminFeedback />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/helpdesk"}>
+        <OfficialLayout>
+          <AdminHelpdesk />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/inventory"}>
+        <OfficialLayout>
+          <AdminInventory />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/travel"}>
+        <OfficialLayout>
+          <AdminTravel />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/import-export"}>
+        <OfficialLayout>
+          <AdminImportExport />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/analytics"}>
+        <OfficialLayout>
+          <AdminAnalytics />
+        </OfficialLayout>
+      </Route>
+
+      {/* Administration - New Pages */}
+      <Route path="/admin/institutions">
+        <OfficialLayout>
+          <AdminInstitutions />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/privacy">
+        <OfficialLayout>
+          <AdminPrivacy />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/consent">
+        <OfficialLayout>
+          <AdminConsent />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/mfa">
+        <OfficialLayout>
+          <AdminMfa />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/impersonation">
+        <OfficialLayout>
+          <AdminImpersonation />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/i18n">
+        <OfficialLayout>
+          <AdminI18n />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/ops">
+        <OfficialLayout>
+          <AdminOps />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/accessibility">
+        <OfficialLayout>
+          <AdminAccessibility />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/saas">
+        <OfficialLayout>
+          <AdminSaaS />
+        </OfficialLayout>
+      </Route>
+
+      {/* Page Builder, Drive, Bulk Data */}
+      <Route path="/admin/page-builder">
+        <OfficialLayout>
+          <AdminPageBuilder />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/google-drive">
+        <OfficialLayout>
+          <AdminGoogleDrive />
+        </OfficialLayout>
+      </Route>
+      <Route path="/admin/bulk-data">
+        <OfficialLayout>
+          <AdminBulkData />
+        </OfficialLayout>
+      </Route>
+
+      {/* NGA Admin Routes */}
+      <Route path="/admin/nga">
+        <OfficialLayout><AdminNga /></OfficialLayout>
+      </Route>
+      <Route path="/admin/nga/delegations">
+        <OfficialLayout><AdminNga /></OfficialLayout>
+      </Route>
+      <Route path="/admin/nga/agenda">
+        <OfficialLayout><AdminNga /></OfficialLayout>
+      </Route>
+      <Route path="/admin/nga/roll-call">
+        <OfficialLayout><AdminNga /></OfficialLayout>
+      </Route>
+      <Route path="/admin/nga/ccc">
+        <OfficialLayout><AdminNga /></OfficialLayout>
+      </Route>
+      <Route path="/admin/nga/decisions">
+        <OfficialLayout><AdminNga /></OfficialLayout>
+      </Route>
+      <Route path="/admin/nga/minutes">
+        <OfficialLayout><AdminNga /></OfficialLayout>
       </Route>
 
       {/* 404 */}
