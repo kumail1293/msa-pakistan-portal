@@ -516,7 +516,7 @@ class DocumentUploadEngine {
     ];
 
     for (const sample of samples) {
-      this.uploadDocument({ ...sample, uploadedBy: null });
+      this.uploadDocument({ ...sample });
     }
   }
 }

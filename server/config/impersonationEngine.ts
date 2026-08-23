@@ -109,6 +109,30 @@ export const impersonationEngine = {
     } catch { return null; }
   },
 
+  /** Get impersonation stats for admin dashboard. */
+  getStats: async (): Promise<{ total: number; active: number; completed: number; administrators: number }> => {
+    const db = getDb();
+    if (!db) return { total: 0, active: 0, completed: 0, administrators: 0 };
+    try {
+      const all = await db.select().from(impersonationSessions);
+      return {
+        total: all.length,
+        active: all.filter(s => s.status === "active").length,
+        completed: all.filter(s => s.status === "ended").length,
+        administrators: new Set(all.map(s => s.administratorId)).size,
+      };
+    } catch { return { total: 0, active: 0, completed: 0, administrators: 0 }; }
+  },
+
+  /** Get impersonation sessions list. */
+  getSessions: async (limit: number = 50): Promise<any[]> => {
+    const db = getDb();
+    if (!db) return [];
+    try {
+      return db.select().from(impersonationSessions).orderBy(desc(impersonationSessions.createdAt)).limit(limit);
+    } catch { return []; }
+  },
+
   /** Get impersonation history. */
   getHistory: async (administratorId?: number, limit: number = 50): Promise<any[]> => {
     const db = getDb();

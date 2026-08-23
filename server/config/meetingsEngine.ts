@@ -52,6 +52,15 @@ export const meetingsEngine = {
     } catch { return false; }
   },
 
+  get: async (meetingId: number): Promise<any | null> => {
+    const db = getDb();
+    if (!db) return null;
+    try {
+      const [meeting] = await db.select().from(meetings).where(eq(meetings.id, meetingId)).limit(1);
+      return meeting ?? null;
+    } catch { return null; }
+  },
+
   list: async (options: { type?: string; status?: string; organizationId?: number; limit?: number } = {}): Promise<any[]> => {
     const db = getDb();
     if (!db) return [];

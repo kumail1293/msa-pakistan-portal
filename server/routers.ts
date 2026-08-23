@@ -1231,7 +1231,7 @@ export const appRouter = router({
     }),
     submit: protectedProcedure.input(z.object({ formId: z.number(), data: z.any() })).mutation(async ({ ctx, input }) => {
       const { submitForm } = await import("./config/formsEngine");
-      return submitForm(input.formId, ctx.user!.id, input.data);
+      return submitForm(input.formId, input.data, ctx.user!.id);
     }),
   }),
 
@@ -1246,7 +1246,7 @@ export const appRouter = router({
     }),
     markRead: protectedProcedure.input(z.object({ notificationId: z.number() })).mutation(async ({ ctx, input }) => {
       const { markAsRead } = await import("./config/notificationEngine");
-      return markAsRead(input.notificationId, ctx.user!.id);
+      return markAsRead(ctx.user!.id, [input.notificationId]);
     }),
     preferences: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreferences } = await import("./config/notificationEngine");
@@ -2291,7 +2291,7 @@ export const appRouter = router({
     notifications: router({
       list: officialModuleProcedure("config").input(z.object({ userId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
         const { getNotifications } = await import("./config/notificationEngine");
-        return getNotifications(input?.userId, input);
+        return getNotifications(input?.userId ?? 0, { limit: input?.limit });
       }),
       templates: officialModuleProcedure("config").query(async () => {
         const { listTemplates } = await import("./config/notificationEngine");
@@ -2308,7 +2308,7 @@ export const appRouter = router({
       }),
     }),
 
-    // ── Workflows (§41-45) ────────────────────────────────────────────
+    // ── Workflows (§41-45)
     workflows: router({
       list: officialModuleProcedure("config").input(z.object({ entityType: z.string().optional() }).optional()).query(async ({ input }) => {
         const { listWorkflows } = await import("./config/workflowEngine");
@@ -2348,7 +2348,7 @@ export const appRouter = router({
       }),
       create: officialModuleProcedure("config").input(z.object({ name: z.string(), type: z.string().optional(), city: z.string().optional(), province: z.string().optional() })).mutation(async ({ ctx, input }) => {
         const { institutionEngine } = await import("./config/institutionEngine");
-        return institutionEngine.create({ ...input, createdBy: ctx.user?.id });
+        return institutionEngine.create(input);
       }),
     }),
 
@@ -3477,11 +3477,11 @@ export const appRouter = router({
       }),
       advance: officialModuleProcedure("config").input(z.object({ instanceId: z.number(), action: z.string(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
         const { advanceWorkflow } = await import("./config/workflowEngine");
-        return advanceWorkflow(input.instanceId, input.action, ctx.user!.id, input.notes);
+        return advanceWorkflow(input.instanceId, { decision: input.action, userId: ctx.user!.id, notes: input.notes });
       }),
       cancel: officialModuleProcedure("config").input(z.object({ instanceId: z.number(), reason: z.string().optional() })).mutation(async ({ ctx, input }) => {
         const { cancelWorkflow } = await import("./config/workflowEngine");
-        return cancelWorkflow(input.instanceId, ctx.user!.id, input.reason);
+        return cancelWorkflow(input.instanceId, input.reason, ctx.user!.id);
       }),
     }),
 
@@ -3505,7 +3505,7 @@ export const appRouter = router({
       }),
       addField: officialModuleProcedure("config").input(z.object({ formId: z.number(), fieldType: z.string(), label: z.string(), required: z.boolean().optional(), options: z.any().optional(), sortOrder: z.number().optional() })).mutation(async ({ input }) => {
         const { addFormField } = await import("./config/formsEngine");
-        return addFormField(input as any);
+        return addFormField(input.formId, input as any);
       }),
       removeField: officialModuleProcedure("config").input(z.object({ fieldId: z.number() })).mutation(async ({ input }) => {
         const { removeFormField } = await import("./config/formsEngine");
@@ -3521,7 +3521,7 @@ export const appRouter = router({
       }),
       reviewSubmission: officialModuleProcedure("config").input(z.object({ submissionId: z.number(), decision: z.string(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
         const { reviewSubmission } = await import("./config/formsEngine");
-        return reviewSubmission(input.submissionId, input.decision, ctx.user!.id, input.notes);
+        return reviewSubmission(input.submissionId, { status: input.decision as any, reviewedBy: ctx.user!.id, reviewNotes: input.notes });
       }),
     }),
 
@@ -3529,7 +3529,11 @@ export const appRouter = router({
     governanceCalendar: router({
       list: officialModuleProcedure("config").input(z.object({ type: z.string().optional(), startDate: z.string().optional(), endDate: z.string().optional() }).optional()).query(async ({ input }) => {
         const { governanceCalendar } = await import("./config/governanceCalendar");
-        return governanceCalendar.getEvents(input);
+        return governanceCalendar.getEvents({
+          ...(input?.type ? { type: input.type as any } : {}),
+          ...(input?.startDate ? { startDate: new Date(input.startDate) } : {}),
+          ...(input?.endDate ? { endDate: new Date(input.endDate) } : {}),
+        });
       }),
       summary: officialModuleProcedure("config").query(async () => {
         const { governanceCalendar } = await import("./config/governanceCalendar");
@@ -3537,7 +3541,7 @@ export const appRouter = router({
       }),
       upcoming: officialModuleProcedure("config").input(z.object({ days: z.number().optional() }).optional()).query(async ({ input }) => {
         const { governanceCalendar } = await import("./config/governanceCalendar");
-        return governanceCalendar.getUpcoming(input?.days);
+        return governanceCalendar.getUpcomingDeadlines(input?.days);
       }),
       createEvent: officialModuleProcedure("config").input(z.object({ title: z.string(), type: z.string(), startDate: z.date(), endDate: z.date().optional(), description: z.string().optional(), priority: z.string().optional() })).mutation(async ({ ctx, input }) => {
         const { governanceCalendar } = await import("./config/governanceCalendar");
@@ -3549,7 +3553,7 @@ export const appRouter = router({
     notifications: router({
       list: officialModuleProcedure("config").input(z.object({ userId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
         const { getNotifications } = await import("./config/notificationEngine");
-        return getNotifications(input?.userId, input);
+        return getNotifications(input?.userId ?? 0, { limit: input?.limit });
       }),
       templates: officialModuleProcedure("config").query(async () => {
         const { listTemplates } = await import("./config/notificationEngine");
@@ -3570,15 +3574,17 @@ export const appRouter = router({
     minutes: router({
       list: officialModuleProcedure("config").input(z.object({ meetingId: z.number().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
         const { minutesEngine } = await import("./config/minutesEngine");
-        return minutesEngine.list(input ?? {});
+        if (input?.meetingId) return minutesEngine.getMinutesForMeeting(input.meetingId);
+        return [];
       }),
       get: officialModuleProcedure("config").input(z.object({ minutesId: z.number() })).query(async ({ input }) => {
         const { minutesEngine } = await import("./config/minutesEngine");
-        return minutesEngine.get(input.minutesId);
+        const results = await minutesEngine.getMinutesForMeeting(input.minutesId);
+        return results[0] ?? null;
       }),
       create: officialModuleProcedure("config").input(z.object({ meetingId: z.number(), title: z.string(), content: z.any().optional() })).mutation(async ({ ctx, input }) => {
         const { minutesEngine } = await import("./config/minutesEngine");
-        return minutesEngine.create({ ...input, createdBy: ctx.user!.id } as any);
+        return minutesEngine.createDraft({ meetingId: input.meetingId, content: input.content ?? input.title, recordedBy: ctx.user!.id });
       }),
     }),
 
@@ -3661,7 +3667,7 @@ export const appRouter = router({
       })).mutation(async ({ ctx, input }) => {
         const { addAgendaItem } = await import("./config/ngaEngine");
         const { meetingId, ...rest } = input;
-        return addAgendaItem(meetingId, rest);
+        return addAgendaItem(meetingId, rest.title ?? '', rest.type ?? 'plenary', { description: rest.description, timeAllotted: rest.timeAllotted, order: rest.order });
       }),
 
       /** Get NGA decisions. */
@@ -3786,7 +3792,7 @@ export const appRouter = router({
           category: "admin",
           entityType: input.entityType,
           entityId: 0,
-          after: { editCount: input.edits.length, fields: [...new Set(input.edits.map(e => e.field))] },
+          after: { editCount: input.edits.length, fields: Array.from(new Set(input.edits.map(e => e.field))) },
         });
 
         const { googleDriveEngine } = await import("./config/googleDriveEngine");
@@ -3917,7 +3923,7 @@ export const appRouter = router({
         }))
         .mutation(async ({ input }) => {
           const { cmsEngine } = await import("./config/cmsEngine");
-          const { sanitizePageContent, sanitizeText } = await import("../_core/sanitize");
+          const { sanitizePageContent, sanitizeText } = await import("./_core/sanitize");
           // Sanitize content to prevent stored XSS
           const sanitizedContent = input.content ? sanitizePageContent(input.content) : null;
           const sanitizedHtml = input.contentHtml ? sanitizeText(input.contentHtml) : null;
@@ -3936,7 +3942,7 @@ export const appRouter = router({
         .input(z.object({ id: z.string().min(1), data: z.any() }))
         .mutation(async ({ input }) => {
           const { cmsEngine } = await import("./config/cmsEngine");
-          const { sanitizePageContent } = await import("../_core/sanitize");
+          const { sanitizePageContent } = await import("./_core/sanitize");
           // Sanitize content to prevent stored XSS
           const sanitizedData = { ...input.data };
           if (sanitizedData.content) {

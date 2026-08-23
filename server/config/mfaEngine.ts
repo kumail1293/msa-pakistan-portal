@@ -190,6 +190,35 @@ export const mfaEngine = {
     } catch { return []; }
   },
 
+  /** Get MFA stats for admin dashboard. */
+  getStats: async (): Promise<{ totalUsers: number; totpEnabled: number; recoveryCodesAvailable: number }> => {
+    const db = getDb();
+    if (!db) return { totalUsers: 0, totpEnabled: 0, recoveryCodesAvailable: 0 };
+    try {
+      const all = await db.select().from(mfaSettings);
+      return {
+        totalUsers: all.length,
+        totpEnabled: all.filter(s => s.totpEnabled).length,
+        recoveryCodesAvailable: all.reduce((sum, s) => {
+          const total = (s.recoveryCodes as string[]) ?? [];
+          const used = (s.recoveryCodesUsed as string[]) ?? [];
+          return sum + (total.length - used.length);
+        }, 0),
+      };
+    } catch { return { totalUsers: 0, totpEnabled: 0, recoveryCodesAvailable: 0 }; }
+  },
+
+  /** Get enrollment status summary. */
+  getEnrollmentStatus: async (): Promise<{ enrolled: number; notEnrolled: number; total: number }> => {
+    const db = getDb();
+    if (!db) return { enrolled: 0, notEnrolled: 0, total: 0 };
+    try {
+      const all = await db.select().from(mfaSettings);
+      const enrolled = all.filter(s => s.totpEnabled).length;
+      return { enrolled, notEnrolled: all.length - enrolled, total: all.length };
+    } catch { return { enrolled: 0, notEnrolled: 0, total: 0 }; }
+  },
+
   /** Check if MFA is required for a user. */
   isRequired: async (userId: number): Promise<boolean> => {
     const db = getDb();

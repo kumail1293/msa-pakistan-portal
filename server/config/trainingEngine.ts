@@ -56,6 +56,15 @@ export const trainingEngine = {
     } catch { return false; }
   },
 
+  getCourse: async (courseId: number): Promise<any | null> => {
+    const db = getDb();
+    if (!db) return null;
+    try {
+      const [course] = await db.select().from(trainingCourses).where(eq(trainingCourses.id, courseId)).limit(1);
+      return course ?? null;
+    } catch { return null; }
+  },
+
   listCourses: async (options: { organizationId?: number; category?: string; limit?: number } = {}): Promise<any[]> => {
     const db = getDb();
     if (!db) return [];

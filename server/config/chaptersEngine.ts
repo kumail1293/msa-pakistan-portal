@@ -64,6 +64,16 @@ export const chaptersEngine = {
     } catch { return false; }
   },
 
+  /** Get a single chapter by ID. */
+  get: async (chapterId: number): Promise<any | null> => {
+    const db = getDb();
+    if (!db) return null;
+    try {
+      const [chapter] = await db.select().from(chapters).where(eq(chapters.id, chapterId)).limit(1);
+      return chapter ?? null;
+    } catch { return null; }
+  },
+
   /** List chapters. */
   list: async (options: { type?: string; status?: string; limit?: number } = {}): Promise<any[]> => {
     const db = getDb();

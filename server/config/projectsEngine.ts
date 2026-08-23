@@ -49,6 +49,14 @@ export const projectsEngine = {
     } catch { return false; }
   },
 
+  getProject: async (projectId: number): Promise<any | null> => {
+    const db = getDb(); if (!db) return null;
+    try {
+      const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+      return project ?? null;
+    } catch { return null; }
+  },
+
   listProjects: async (options: { status?: string; limit?: number } = {}): Promise<any[]> => {
     const db = getDb(); if (!db) return [];
     try {

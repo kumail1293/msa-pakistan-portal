@@ -119,7 +119,7 @@ export function sanitizeHtml(html: string): string {
   let result = html;
 
   // Remove dangerous tags entirely (with their content for script/iframe)
-  for (const tag of DANGEROUS_TAGS) {
+  for (const tag of Array.from(DANGEROUS_TAGS)) {
     // Remove self-closing and paired tags, including content for dangerous ones
     const pairedRegex = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?</${tag}>`, "gi");
     const selfClosingRegex = new RegExp(`<${tag}\\b[^>]*/?>`, "gi");
@@ -128,7 +128,7 @@ export function sanitizeHtml(html: string): string {
   }
 
   // Remove event handler attributes
-  for (const attr of DANGEROUS_ATTRS) {
+  for (const attr of Array.from(DANGEROUS_ATTRS)) {
     const regex = new RegExp(`\\s+${attr}\\s*=\\s*["'][^"']*["']`, "gi");
     result = result.replace(regex, "");
     // Also handle unquoted values
