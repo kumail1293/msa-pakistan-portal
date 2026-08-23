@@ -230,7 +230,7 @@ export default function AdminActivities() {
                 <Select value={newActivity.standingCommittee} onValueChange={(v) => setNewActivity({ ...newActivity, standingCommittee: v })}>
                   <SelectTrigger><SelectValue placeholder="None (General)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None (General)</SelectItem>
                     <SelectItem value="SCOPH">SCOPH — Public Health</SelectItem>
                     <SelectItem value="SCORA">SCORA — Sexual & Reproductive Health</SelectItem>
                     <SelectItem value="SCOME">SCOME — Medical Education</SelectItem>

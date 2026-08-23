@@ -692,10 +692,12 @@ export async function calculateWeightedVote(
 
     const electionWeights = (election?.votingMethod as any)?.weightedRoles ?? weights ?? {};
 
-    // Default weights based on organization type
+    // Default weights based on organization type (§8.7.1, §8.7.2)
+    // PLENARY:        Permanent LC = 1, Temporary LC = 1, Candidate LC = 0, CI = 0
+    // ELECTION:        Permanent LC = 10, Temporary LC = 10, Candidate LC = 1, CI = 1
     const defaultWeights: Record<string, number> = {
-      permanent_lc: 1,
-      temporary_lc: 1,
+      permanent_lc: 10,
+      temporary_lc: 10,
       candidate_lc: 1,
       ci: 1,
     };

@@ -26,11 +26,15 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   BookOpen,
   Briefcase,
+  Building,
   Calendar,
   Coins,
   DollarSign,
   FileText,
+  Flag,
+  FolderKanban,
   FolderOpen,
+  GraduationCap,
   IdCard,
   LayoutDashboard,
   LogOut,
@@ -55,12 +59,19 @@ const navItems = [
   { icon: DollarSign, label: "Finance", path: "/finance" },
   { icon: FileText, label: "Documents", path: "/documents" },
   { icon: Megaphone, label: "Updates", path: "/communications" },
+  { icon: Building, label: "Chapters", path: "/chapters" },
+  { icon: FolderKanban, label: "Projects", path: "/projects" },
+  { icon: GraduationCap, label: "Training", path: "/training" },
+  { icon: Calendar, label: "Meetings", path: "/meetings" },
+  { icon: Flag, label: "NGA Portal", path: "/nga" },
+  { icon: Vote, label: "Voting", path: "/voting" },
   { icon: Briefcase, label: "Opportunities", path: "/opportunities" },
   { icon: BookOpen, label: "CV Maker", path: "/cv-maker" },
   { icon: Users, label: "Directory", path: "/directory" },
   { icon: IdCard, label: "Membership Card", path: "/membership-card" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
+
 
 const SIDEBAR_WIDTH_KEY = "msap-sidebar-width";
 const DEFAULT_WIDTH = 272;
@@ -104,12 +115,13 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
     }
   }, [loading, user]);
 
-  if (loading) {
-    return <DashboardLayoutSkeleton />;
+  // Show nothing while loading or redirecting — prevents sidebar flash
+  if (loading || !user) {
+    return null;
   }
 
-  if (!user) {
-    // The redirect effect above handles navigation; render nothing meanwhile.
+  // Officials should never see the member layout
+  if (isOfficialRole(user.role)) {
     return null;
   }
 

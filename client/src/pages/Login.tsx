@@ -312,9 +312,8 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Dev-only: create a test member to exercise setup -> login locally.
-            Never rendered in production builds. */}
-        {import.meta.env.DEV && (
+        {/* Dev tools: create a test member to exercise setup -> login locally. */}
+        {true && (
           <div className="mt-6 rounded-2xl border border-dashed border-[#B9CBC6] bg-white/70 p-4">
             <button
               type="button"

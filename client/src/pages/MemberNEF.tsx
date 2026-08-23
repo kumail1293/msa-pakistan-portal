@@ -134,7 +134,7 @@ export default function MemberNEF() {
                     <Select value={nef.standingCommittee} onValueChange={v => setNef({...nef, standingCommittee: v})}>
                       <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {STANDING_COMMITTEES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>

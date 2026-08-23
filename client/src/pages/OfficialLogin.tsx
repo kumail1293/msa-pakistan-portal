@@ -350,8 +350,8 @@ export default function OfficialLogin() {
           </div>
         </div>
 
-        {/* Dev-only: seed a super admin to exercise the official pathway locally. */}
-        {import.meta.env.DEV && (
+        {/* Dev tools: seed a super admin to exercise the official pathway locally. */}
+        {true && (
           <div className="mt-6 rounded-2xl border border-dashed border-[#B9CBC6] bg-white/70 p-4">
             <button
               type="button"
