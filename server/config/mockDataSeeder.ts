@@ -167,9 +167,21 @@ let seeded = false;
 
 export async function seedMockData(): Promise<void> {
   if (seeded) return;
-  seeded = true;
 
-  console.log("[MockData] Seeding comprehensive mock data...");
+  // SAFETY: Never seed mock data in production
+  if (process.env.NODE_ENV === "production") {
+    console.warn("[MockData] ⚠ BLOCKED — refusing to seed mock data in production (NODE_ENV=production)");
+    return;
+  }
+
+  // SAFETY: Require explicit opt-in flag even in development
+  if (!process.env.MSAP_SEED_MOCK_DATA) {
+    console.info("[MockData] Skipping — set MSAP_SEED_MOCK_DATA=true to enable");
+    return;
+  }
+
+  seeded = true;
+  console.log("[MockData] Seeding comprehensive mock data (development only)...");
 
   // ── Activities ──
   for (const a of ACTIVITIES_DATA) {

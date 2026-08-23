@@ -322,6 +322,11 @@ class GoogleDriveEngine {
   }
 
   deployAppsScript(id: string): AppsScriptProject | null {
+    // SAFETY: Block script deployment in production without real Google integration
+    if (process.env.NODE_ENV === "production" && !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      console.warn("[GoogleDrive] ⚠ BLOCKED — Apps Script deployment requires Google credentials in production");
+      return null;
+    }
     const script = this.scripts.get(id);
     if (!script) return null;
     script.deploymentId = `deploy_${Date.now()}`;
@@ -333,6 +338,10 @@ class GoogleDriveEngine {
   }
 
   runAppsScript(id: string): { success: boolean; output: string } {
+    // SAFETY: Block script execution in production without real Google integration
+    if (process.env.NODE_ENV === "production" && !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      return { success: false, output: "Script execution blocked: Google credentials not configured" };
+    }
     const script = this.scripts.get(id);
     if (!script) return { success: false, output: "Script not found" };
     script.lastRun = new Date().toISOString();

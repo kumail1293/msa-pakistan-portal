@@ -8,6 +8,46 @@
 
 export type UploadInput = { fileName: string; mimeType: string; base64: string };
 
+/** Maximum file size: 50MB for all uploads */
+export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024;
+
+/** Dangerous MIME types that should never be uploaded */
+const BLOCKED_MIMES = new Set([
+  "text/html",
+  "application/xhtml+xml",
+  "application/x-shockwave-flash",
+  "application/x-msdownload",
+  "application/x-msdos-program",
+  "application/x-executable",
+  "application/x-sharedlib",
+  "application/x-elf",
+  "application/x-mach-binary",
+]);
+
+/**
+ * Sanitize a filename: remove path separators, null bytes, and dangerous chars.
+ * Prevents path traversal attacks.
+ */
+export function sanitizeFileName(name: string): string {
+  if (!name) return "unnamed";
+  return name
+    .replace(/\\/g, "_")           // Windows path separator
+    .replace(/\//g, "_")            // Unix path separator
+    .replace(/\.\./g, "_")          // Parent directory traversal
+    .replace(/\x00/g, "_")          // Null byte
+    .replace(/[<>:"|?*]/g, "_")     // Invalid filename chars
+    .replace(/^[.\s]+/, "")         // Leading dots/spaces
+    .slice(0, 200)                    // Max length
+    || "unnamed";
+}
+
+/**
+ * Check if a MIME type is explicitly blocked.
+ */
+export function isBlockedMimeType(mimeType: string): boolean {
+  return BLOCKED_MIMES.has(mimeType.toLowerCase());
+}
+
 const MAGIC: Array<{
   kind: "image" | "pdf";
   mime: string;
@@ -72,6 +112,26 @@ export function validateUpload(
   kinds: Array<"image" | "pdf">
 ): string | null {
   if (!upload || !upload.base64) return "Missing file data.";
+
+  // Check for blocked MIME types first
+  if (isBlockedMimeType(upload.mimeType)) {
+    return `File type ${upload.mimeType} is not allowed for security reasons.`;
+  }
+
+  // Check file size (base64 is ~33% larger than raw bytes)
+  const estimatedSize = Math.floor(upload.base64.length * 0.75);
+  if (estimatedSize > MAX_UPLOAD_SIZE_BYTES) {
+    return `File size exceeds maximum of ${Math.floor(MAX_UPLOAD_SIZE_BYTES / 1024 / 1024)}MB.`;
+  }
+
+  // Block SVG uploads (can contain embedded JavaScript)
+  const lowerName = (upload.fileName || "").toLowerCase();
+  if (lowerName.endsWith(".svg") || lowerName.endsWith(".svgz")) {
+    return "SVG files are not allowed for security reasons.";
+  }
+  if (upload.mimeType === "image/svg+xml" || upload.mimeType === "text/xml") {
+    return "SVG/XML files are not allowed for security reasons.";
+  }
 
   const declared = (upload.mimeType || "").toLowerCase();
   if (!kinds.includes(declared === "application/pdf" ? "pdf" : "image")) {

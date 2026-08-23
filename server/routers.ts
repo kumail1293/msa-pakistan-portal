@@ -3745,7 +3745,50 @@ export const appRouter = router({
         const { googleDriveEngine } = await import("./config/googleDriveEngine");
         return googleDriveEngine.getBulkSpreadsheetData(input.entityType);
       }),
-      saveBulkEdits: officialModuleProcedure("config").input(z.object({ entityType: z.string(), edits: z.array(z.object({ entityId: z.union([z.string(), z.number()]), entityType: z.string(), field: z.string(), oldValue: z.any(), newValue: z.any(), editedBy: z.string(), timestamp: z.string() })) })).mutation(async ({ input }) => {
+      saveBulkEdits: officialModuleProcedure("config").input(z.object({ entityType: z.string(), edits: z.array(z.object({ entityId: z.union([z.string(), z.number()]), entityType: z.string(), field: z.string(), oldValue: z.any(), newValue: z.any(), editedBy: z.string(), timestamp: z.string() })) })).mutation(async ({ ctx, input }) => {
+        // SECURITY: Field-level authorization check
+        // Certain fields require elevated permissions to prevent privilege escalation
+        const RESTRICTED_FIELDS: Record<string, string[]> = {
+          members: ["role", "officialPosition", "membershipStatus", "sessionEpoch", "passwordHash"],
+          local_councils: ["type"],  // Only super admin can change LC type
+          activities: [],
+          events: [],
+          courses: [],
+        };
+
+        const restricted = RESTRICTED_FIELDS[input.entityType] ?? [];
+        const isSuperAdmin = ctx.user?.role === "superadmin";
+
+        // Block restricted field edits unless super admin
+        if (!isSuperAdmin) {
+          const violations = input.edits.filter(e => restricted.includes(e.field));
+          if (violations.length > 0) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `Cannot edit restricted fields: ${violations.map(v => v.field).join(", ")}. Super admin access required.`,
+            });
+          }
+        }
+
+        // SECURITY: Block role/position escalation — no one can set themselves or others to superadmin
+        for (const edit of input.edits) {
+          if ((edit.field === "role" && edit.newValue === "superadmin") ||
+              (edit.field === "officialPosition" && String(edit.newValue).includes("president"))) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Cannot assign super admin or president roles through bulk editing.",
+            });
+          }
+        }
+
+        // AUDIT: Log the bulk edit operation
+        void logAuditForUser(ctx.user!, "bulk_data.edit", {
+          category: "admin",
+          entityType: input.entityType,
+          entityId: 0,
+          after: { editCount: input.edits.length, fields: [...new Set(input.edits.map(e => e.field))] },
+        });
+
         const { googleDriveEngine } = await import("./config/googleDriveEngine");
         return googleDriveEngine.saveBulkEdits(input.entityType, input.edits);
       }),
@@ -3874,7 +3917,14 @@ export const appRouter = router({
         }))
         .mutation(async ({ input }) => {
           const { cmsEngine } = await import("./config/cmsEngine");
+          const { sanitizePageContent, sanitizeText } = await import("../_core/sanitize");
+          // Sanitize content to prevent stored XSS
+          const sanitizedContent = input.content ? sanitizePageContent(input.content) : null;
+          const sanitizedHtml = input.contentHtml ? sanitizeText(input.contentHtml) : null;
           return cmsEngine.createPage({
+            ...input,
+            content: sanitizedContent,
+            contentHtml: sanitizedHtml,
             ...input,
             status: (input.status || "draft") as "draft" | "published" | "archived",
             parentId: null, metaImage: null, canonicalUrl: null,
@@ -3886,7 +3936,13 @@ export const appRouter = router({
         .input(z.object({ id: z.string().min(1), data: z.any() }))
         .mutation(async ({ input }) => {
           const { cmsEngine } = await import("./config/cmsEngine");
-          return cmsEngine.updatePage(input.id, input.data);
+          const { sanitizePageContent } = await import("../_core/sanitize");
+          // Sanitize content to prevent stored XSS
+          const sanitizedData = { ...input.data };
+          if (sanitizedData.content) {
+            sanitizedData.content = sanitizePageContent(sanitizedData.content);
+          }
+          return cmsEngine.updatePage(input.id, sanitizedData);
         }),
       delete: publicProcedure
         .input(z.object({ id: z.string().min(1) }))

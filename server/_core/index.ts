@@ -174,12 +174,16 @@ async function startServer() {
     // Mark server ready for traffic (enables /health/ready and /health).
     markReady();
 
-    // Seed mock data and initialize engines
+    // Seed mock data and initialize engines (dev only, requires MSAP_SEED_MOCK_DATA=true)
     seedMockData().then(() => {
       const stats = getMockDataStats();
       log.info({ mockData: stats }, "Mock data seeded");
     }).catch(err => log.warn({ err }, "Mock data seeding failed"));
-    documentUploadEngine.seedSampleDocuments();
+
+    // Document upload engine — always safe to initialize (in-memory only)
+    if (!ENV.isProduction) {
+      documentUploadEngine.seedSampleDocuments();
+    }
     log.info({ driveStats: googleDriveEngine.getStats() }, "Google Drive engine initialized");
     log.info({ docStats: documentUploadEngine.getStats() }, "Document Upload engine initialized");
 
