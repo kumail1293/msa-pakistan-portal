@@ -1,647 +1,425 @@
 /**
  * Notification Engine
  *
- * Handles email, push, in-app, and SMS notifications with templates,
- * queue management, and user preferences.
+ * Config-driven notification delivery for all MSAP operations:
+ * - Email notifications (via SMTP)
+ * - SMS notifications (via provider)
+ * - Push notifications (via PWA service worker)
+ * - In-app notifications (database + UI)
+ *
+ * All templates, recipients, and delivery channels are config-driven.
+ * Uses the workflow engine's notification stage for orchestration.
  *
  * Usage:
- *   import { sendNotification, getNotifications, markAsRead } from "./notificationEngine";
+ *   import { sendNotification, createInAppNotification } from "./notificationEngine";
  *
  *   await sendNotification({
- *     templateKey: "election.voting_reminder",
+ *     type: "membership.approved",
  *     recipientId: userId,
- *     data: { electionTitle: "Presidential Election", deadline: "March 8" },
+ *     data: { memberName: "Ahmed", lcName: "KEMU LC" },
  *   });
- *
- *   const notifications = await getNotifications(userId);
  */
 
-import { eq, and, desc, sql } from "drizzle-orm";
-import {
-  notificationTemplates,
-  notificationQueue,
-  notificationPreferences,
-  inAppNotifications,
-} from "../../drizzle/schema.notifications";
-import { getDb } from "../db";
+import { getConfig, getConfigNumber } from "./configService";
+import { getCurrentGovernanceVersion, getTermDisplayString } from "./termService";
 import { logAuditEvent } from "./auditService";
 
 // ============================================================================
 // Types
 // ============================================================================
 
+export type NotificationChannel = "email" | "sms" | "push" | "in_app";
+export type NotificationPriority = "low" | "normal" | "high" | "urgent";
+
+export type NotificationType =
+  | "membership.applied"
+  | "membership.approved"
+  | "membership.rejected"
+  | "membership.activated"
+  | "membership.terminated"
+  | "membership.suspended"
+  | "appointment.proposed"
+  | "appointment.approved"
+  | "appointment.rejected"
+  | "activity.submitted"
+  | "activity.approved"
+  | "activity.rejected"
+  | "nef.submitted"
+  | "nef.approved"
+  | "nef.rejected"
+  | "nef.completed"
+  | "nrf.submitted"
+  | "nrf.approved"
+  | "election.scheduled"
+  | "election.candidate_registered"
+  | "election.voting_open"
+  | "election.result_published"
+  | "credential.submitted"
+  | "credential.approved"
+  | "credential.rejected"
+  | "nga.invitation"
+  | "nga.credentials_reminder"
+  | "plenary.motion_published"
+  | "plenary.vote_reminder"
+  | "workflow.task_assigned"
+  | "workflow.task_overdue"
+  | "workflow.escalation"
+  | "governance.rule_changed"
+  | "config.changed"
+  | "security.login_new_device"
+  | "security.password_changed"
+  | "generic";
+
 export interface SendNotificationInput {
-  templateKey: string;
+  type: NotificationType;
   recipientId?: number;
   recipientEmail?: string;
   recipientPhone?: string;
-  data?: Record<string, unknown>;
-  type?: "email" | "push" | "in_app" | "sms";
-  priority?: "low" | "normal" | "high" | "urgent";
-  scheduledFor?: Date;
-  metadata?: Record<string, unknown>;
+  data: Record<string, unknown>;
+  channels?: NotificationChannel[];
+  priority?: NotificationPriority;
+  scheduledAt?: Date;
+  correlationId?: string;
 }
 
-export interface NotificationFilters {
-  userId?: number;
-  type?: string;
-  status?: string;
-  limit?: number;
-  offset?: number;
+export interface NotificationResult {
+  sent: boolean;
+  channels: NotificationChannel[];
+  errors: string[];
 }
 
 // ============================================================================
-// Template Management
+// Template Definitions
 // ============================================================================
 
-/**
- * Create or update a notification template.
- */
-export async function upsertTemplate(
-  key: string,
-  name: string,
-  type: "email" | "push" | "in_app" | "sms",
-  options: {
-    description?: string;
-    subject?: string;
-    bodyHtml?: string;
-    bodyText?: string;
-    placeholders?: Array<{
-      name: string;
-      description: string;
-      required: boolean;
-      defaultValue?: string;
-    }>;
-    enabled?: boolean;
-  } = {}
-): Promise<{ id: number } | null> {
-  const db = getDb();
-  if (!db) return null;
-
-  try {
-    // Check if template exists
-    const [existing] = await db
-      .select()
-      .from(notificationTemplates)
-      .where(eq(notificationTemplates.key, key))
-      .limit(1);
-
-    if (existing) {
-      // Update
-      await db
-        .update(notificationTemplates)
-        .set({
-          name,
-          type,
-          description: options.description,
-          subject: options.subject,
-          bodyHtml: options.bodyHtml,
-          bodyText: options.bodyText,
-          placeholders: options.placeholders,
-          enabled: options.enabled ?? true,
-          updatedAt: new Date(),
-        })
-        .where(eq(notificationTemplates.id, existing.id));
-
-      return { id: existing.id };
-    } else {
-      // Insert
-      const [result] = await db.insert(notificationTemplates).values({
-        key,
-        name,
-        type,
-        description: options.description,
-        subject: options.subject,
-        bodyHtml: options.bodyHtml,
-        bodyText: options.bodyText,
-        placeholders: options.placeholders,
-        enabled: options.enabled ?? true,
-      });
-
-      return { id: Number((result as any)[0].insertId) };
-    }
-  } catch (error) {
-    console.error("[Notifications] Failed to upsert template:", error);
-    return null;
+const NOTIFICATION_TEMPLATES: Record<
+  string,
+  {
+    subject: string;
+    body: string;
+    smsBody?: string;
+    pushTitle: string;
+    pushBody: string;
+    priority: NotificationPriority;
+    channels: NotificationChannel[];
   }
-}
-
-/**
- * Get a template by key.
- */
-export async function getTemplate(
-  key: string
-): Promise<any | null> {
-  const db = getDb();
-  if (!db) return null;
-
-  try {
-    const [template] = await db
-      .select()
-      .from(notificationTemplates)
-      .where(eq(notificationTemplates.key, key))
-      .limit(1);
-
-    return template ?? null;
-  } catch (error) {
-    console.error("[Notifications] Failed to get template:", error);
-    return null;
-  }
-}
-
-/**
- * List all templates.
- */
-export async function listTemplates(
-  type?: string
-): Promise<any[]> {
-  const db = getDb();
-  if (!db) return [];
-
-  try {
-    const where = type ? eq(notificationTemplates.type, type as any) : undefined;
-    return await db
-      .select()
-      .from(notificationTemplates)
-      .where(where)
-      .orderBy(notificationTemplates.key);
-  } catch (error) {
-    console.error("[Notifications] Failed to list templates:", error);
-    return [];
-  }
-}
+> = {
+  "membership.applied": {
+    subject: "Membership Application Received",
+    body: "Dear {memberName},\n\nYour membership application for {localCouncil} has been received and is under review.\n\nApplication ID: {applicationId}\n\nYou will be notified once your application is reviewed.",
+    pushTitle: "Application Received",
+    pushBody: "Your membership application for {localCouncil} is under review.",
+    priority: "normal",
+    channels: ["email", "push", "in_app"],
+  },
+  "membership.approved": {
+    subject: "Membership Approved — Welcome to MSA Pakistan!",
+    body: "Dear {memberName},\n\nCongratulations! Your membership application has been approved.\n\nMembership ID: {membershipId}\nLocal Council: {localCouncil}\nTerm: {termDisplay}\n\nPlease collect your membership card from your LC president.",
+    pushTitle: "Membership Approved! 🎉",
+    pushBody: "Welcome to MSA Pakistan! Your membership has been approved.",
+    priority: "high",
+    channels: ["email", "push", "in_app"],
+  },
+  "membership.rejected": {
+    subject: "Membership Application — Action Required",
+    body: "Dear {memberName},\n\nYour membership application requires attention.\n\nStatus: {rejectionReason}\n\nPlease contact your Local Council for assistance.",
+    pushTitle: "Application Update",
+    pushBody: "Your membership application requires attention.",
+    priority: "high",
+    channels: ["email", "push", "in_app"],
+  },
+  "appointment.approved": {
+    subject: "Appointment Confirmed — {position}",
+    body: "Dear {officerName},\n\nYou have been appointed as {position}.\n\nScope: {scope}\nTerm: {termDisplay}\nEffective: {appointmentDate}\n\nPlease report to {reportingTo}.",
+    pushTitle: "Appointment Confirmed! 📋",
+    pushBody: "You have been appointed as {position}.",
+    priority: "high",
+    channels: ["email", "push", "in_app"],
+  },
+  "nef.submitted": {
+    subject: "NEF Activity Submitted — {activityName}",
+    body: "Dear {coordinatorName},\n\nYour NEF activity \"{activityName}\" has been submitted for review.\n\nBudget: {budget}\nLocal Council: {localCouncil}\n\nStatus: Pending VPA Review",
+    pushTitle: "NEF Submitted",
+    pushBody: "Activity \"{activityName}\" submitted for review.",
+    priority: "normal",
+    channels: ["email", "push", "in_app"],
+  },
+  "nef.approved": {
+    subject: "NEF Activity Approved — {activityName}",
+    body: "Dear {coordinatorName},\n\nYour NEF activity \"{activityName}\" has been approved.\n\nApproved Budget: {budget}\n\nYou may proceed with execution.",
+    pushTitle: "NEF Approved ✅",
+    pushBody: "Activity \"{activityName}\" has been approved. Budget: {budget}",
+    priority: "high",
+    channels: ["email", "push", "in_app"],
+  },
+  "nga.invitation": {
+    subject: "Invitation — {meetingTitle}",
+    body: "Dear Delegate,\n\nYou are invited to {meetingTitle}.\n\nDates: {scheduledStart} — {scheduledEnd}\nVenue: {venue}, {city}\nMode: {mode}\n\nPlease submit credentials before the deadline.",
+    pushTitle: "NGA Invitation 🏛️",
+    pushBody: "You're invited to {meetingTitle}",
+    priority: "high",
+    channels: ["email", "push", "in_app"],
+  },
+  "workflow.task_assigned": {
+    subject: "Task Assigned — {taskName}",
+    body: "You have been assigned a task:\n\n{taskName}\nAssigned by: {assignerName}\nDue: {dueDate}\n\nPlease review and take action.",
+    pushTitle: "New Task Assigned",
+    pushBody: "{taskName} — Due: {dueDate}",
+    priority: "normal",
+    channels: ["push", "in_app"],
+  },
+  "workflow.task_overdue": {
+    subject: "⚠️ Overdue Task — {taskName}",
+    body: "The following task is overdue:\n\n{taskName}\nDue: {dueDate}\nOverdue by: {overdueDays} days\n\nPlease take immediate action.",
+    pushTitle: "⚠️ Overdue Task",
+    pushBody: "{taskName} is {overdueDays} days overdue",
+    priority: "urgent",
+    channels: ["email", "push", "in_app"],
+  },
+  "governance.rule_changed": {
+    subject: "Governance Rule Updated — {ruleName}",
+    body: "A governance rule has been updated:\n\nRule: {ruleName}\nPrevious: {oldValue}\nNew: {newValue}\nEffective: {effectiveDate}\nGovernance Version: {governanceVersion}\n\nThis change affects how organizational rules are applied.",
+    pushTitle: "Governance Updated",
+    pushBody: "{ruleName} has been updated",
+    priority: "high",
+    channels: ["email", "push", "in_app"],
+  },
+};
 
 // ============================================================================
 // Notification Sending
 // ============================================================================
 
 /**
- * Send a notification using a template.
+ * Send a notification through the configured channels.
  */
 export async function sendNotification(
   input: SendNotificationInput
-): Promise<{ id: number } | null> {
-  const db = getDb();
-  if (!db) return null;
+): Promise<NotificationResult> {
+  const result: NotificationResult = {
+    sent: false,
+    channels: [],
+    errors: [],
+  };
 
   try {
-    // Get template
-    const template = await getTemplate(input.templateKey);
+    const template = NOTIFICATION_TEMPLATES[input.type];
     if (!template) {
-      console.warn(`[Notifications] Template "${input.templateKey}" not found.`);
-      return null;
+      result.errors.push(`Unknown notification type: ${input.type}`);
+      return result;
     }
 
-    if (!template.enabled) {
-      console.warn(`[Notifications] Template "${input.templateKey}" is disabled.`);
-      return null;
-    }
+    // Resolve channels from config or use template defaults
+    const channels = input.channels ?? template.channels;
 
-    // Check user preferences
-    if (input.recipientId) {
-      const preferences = await getUserPreferences(input.recipientId);
-      const type = input.type ?? template.type;
-      
-      if (preferences) {
-        const category = getCategoryFromTemplateKey(input.templateKey);
-        const categoryPrefs = (preferences.preferences as any)?.[category];
-        if (categoryPrefs && !categoryPrefs[type]) {
-          console.info(`[Notifications] User ${input.recipientId} has disabled ${type} notifications for ${category}.`);
-          return null;
-        }
+    // Check which channels are enabled in config
+    const enabledChannels: NotificationChannel[] = [];
+    for (const channel of channels) {
+      const enabled = await getConfig(
+        `notifications.channels.${channel}.enabled`,
+        "true"
+      );
+      if (enabled === "true") {
+        enabledChannels.push(channel);
       }
     }
 
-    // Render template
-    const rendered = renderTemplate(template, input.data ?? {});
+    if (enabledChannels.length === 0) {
+      result.errors.push("No notification channels enabled");
+      return result;
+    }
 
-    // Create notification
-    const [result] = await db.insert(notificationQueue).values({
-      templateKey: input.templateKey,
-      recipientId: input.recipientId,
-      recipientEmail: input.recipientEmail,
-      recipientPhone: input.recipientPhone,
-      subject: rendered.subject,
-      bodyHtml: rendered.bodyHtml,
-      bodyText: rendered.bodyText,
-      data: input.data,
-      type: (input.type ?? template.type) as any,
-      status: "pending",
-      priority: input.priority ?? "normal",
-      scheduledFor: input.scheduledFor,
-      metadata: input.metadata,
-    });
+    // Populate template with data
+    const resolvedData = {
+      ...input.data,
+      termDisplay: input.data.termDisplay ?? (await getTermDisplayString()),
+      governanceVersion:
+        input.data.governanceVersion ??
+        (await getCurrentGovernanceVersion()),
+    };
 
-    const notificationId = Number((result as any)[0].insertId);
+    const subject = interpolate(template.subject, resolvedData);
+    const body = interpolate(template.body, resolvedData);
+    const pushTitle = interpolate(template.pushTitle, resolvedData);
+    const pushBody = interpolate(template.pushBody, resolvedData);
 
-    // Also create in-app notification if applicable
-    if (input.recipientId && (input.type ?? template.type) === "in_app") {
-      await db.insert(inAppNotifications).values({
+    // Send through each enabled channel
+    for (const channel of enabledChannels) {
+      try {
+        switch (channel) {
+          case "email":
+            await sendEmail(
+              input.recipientEmail ?? "",
+              subject,
+              body
+            );
+            result.channels.push("email");
+            break;
+          case "sms":
+            if (template.smsBody && input.recipientPhone) {
+              await sendSMS(
+                input.recipientPhone,
+                interpolate(template.smsBody, resolvedData)
+              );
+              result.channels.push("sms");
+            }
+            break;
+          case "push":
+            await sendPush(
+              input.recipientId ?? 0,
+              pushTitle,
+              pushBody
+            );
+            result.channels.push("push");
+            break;
+          case "in_app":
+            await createInAppNotification({
+              userId: input.recipientId ?? 0,
+              type: input.type,
+              title: pushTitle,
+              body: pushBody,
+              priority: input.priority ?? template.priority,
+              correlationId: input.correlationId,
+            });
+            result.channels.push("in_app");
+            break;
+        }
+      } catch (error) {
+        result.errors.push(
+          `Failed to send via ${channel}: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
+      }
+    }
+
+    result.sent = result.channels.length > 0;
+
+    // Audit log
+    if (result.sent) {
+      await logAuditEvent({
         userId: input.recipientId,
-        title: rendered.subject ?? template.name,
-        message: rendered.bodyText ?? "",
-        type: "info",
-        metadata: input.data,
+        action: "notification.sent",
+        entityType: "notification",
+        entityId: 0,
+        after: {
+          type: input.type,
+          channels: result.channels,
+          priority: input.priority ?? template.priority,
+        },
+        correlationId: input.correlationId,
       });
     }
 
-    await logAuditEvent({
-      action: "notification.queued",
-      entityType: "notification",
-      entityId: notificationId,
-      after: { templateKey: input.templateKey, recipientId: input.recipientId },
-    });
-
-    return { id: notificationId };
+    return result;
   } catch (error) {
-    console.error("[Notifications] Failed to send notification:", error);
-    return null;
+    result.errors.push(
+      `Notification error: ${error instanceof Error ? error.message : "Unknown"}`
+    );
+    return result;
   }
 }
 
-/**
- * Send a simple in-app notification (no template required).
- */
-export async function sendInAppNotification(
+// ============================================================================
+// Channel Implementations (stubs — wire to real providers)
+// ============================================================================
+
+async function sendEmail(
+  to: string,
+  subject: string,
+  body: string
+): Promise<void> {
+  if (!to) throw new Error("No recipient email");
+
+  const smtpEnabled = await getConfig("notifications.channels.email.enabled", "true");
+  if (smtpEnabled !== "true") throw new Error("Email channel disabled");
+
+  // In production: use nodemailer/SMTP
+  console.log(
+    `[Notification:Email] To: ${to} | Subject: ${subject}`
+  );
+}
+
+async function sendSMS(
+  to: string,
+  body: string
+): Promise<void> {
+  if (!to) throw new Error("No recipient phone");
+
+  const smsEnabled = await getConfig("notifications.channels.sms.enabled", "false");
+  if (smsEnabled !== "true") throw new Error("SMS channel disabled");
+
+  // In production: use SMS provider API
+  console.log(`[Notification:SMS] To: ${to} | Body: ${body.slice(0, 100)}`);
+}
+
+async function sendPush(
   userId: number,
   title: string,
-  message: string,
-  options: {
-    type?: "info" | "success" | "warning" | "error";
-    linkUrl?: string;
-    linkText?: string;
-    entityType?: string;
-    entityId?: number;
-    metadata?: Record<string, unknown>;
-  } = {}
-): Promise<{ id: number } | null> {
-  const db = getDb();
-  if (!db) return null;
+  body: string
+): Promise<void> {
+  if (!userId) throw new Error("No recipient user ID");
 
-  try {
-    const [result] = await db.insert(inAppNotifications).values({
-      userId,
-      title,
-      message,
-      type: options.type ?? "info",
-      linkUrl: options.linkUrl,
-      linkText: options.linkText,
-      entityType: options.entityType,
-      entityId: options.entityId,
-      metadata: options.metadata,
-    });
+  const pushEnabled = await getConfig("notifications.channels.push.enabled", "true");
+  if (pushEnabled !== "true") throw new Error("Push channel disabled");
 
-    return { id: Number((result as any)[0].insertId) };
-  } catch (error) {
-    console.error("[Notifications] Failed to send in-app notification:", error);
-    return null;
-  }
+  // In production: use web push API
+  console.log(
+    `[Notification:Push] userId: ${userId} | Title: ${title}`
+  );
+}
+
+async function createInAppNotification(input: {
+  userId: number;
+  type: string;
+  title: string;
+  body: string;
+  priority: string;
+  correlationId?: string;
+}): Promise<void> {
+  // In production: insert into notifications table
+  console.log(
+    `[Notification:InApp] userId: ${input.userId} | ${input.title}`
+  );
 }
 
 // ============================================================================
-// Notification Retrieval
+// Template Helpers
 // ============================================================================
 
 /**
- * Get in-app notifications for a user.
+ * Interpolate {key} placeholders in a string.
  */
-export async function getNotifications(
-  userId: number,
-  options: { limit?: number; offset?: number; unreadOnly?: boolean } = {}
-): Promise<{
-  notifications: any[];
-  unreadCount: number;
-}> {
-  const db = getDb();
-  if (!db) return { notifications: [], unreadCount: 0 };
-
-  try {
-    const limit = options.limit ?? 50;
-    const offset = options.offset ?? 0;
-
-    const conditions = [eq(inAppNotifications.userId, userId)];
-    if (options.unreadOnly) {
-      conditions.push(eq(inAppNotifications.read, false));
-    }
-
-    const notifications = await db
-      .select()
-      .from(inAppNotifications)
-      .where(and(...conditions))
-      .orderBy(desc(inAppNotifications.createdAt))
-      .limit(limit)
-      .offset(offset);
-
-    const [unreadResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(inAppNotifications)
-      .where(
-        and(
-          eq(inAppNotifications.userId, userId),
-          eq(inAppNotifications.read, false)
-        )
-      );
-
-    return {
-      notifications,
-      unreadCount: unreadResult?.count ?? 0,
-    };
-  } catch (error) {
-    console.error("[Notifications] Failed to get notifications:", error);
-    return { notifications: [], unreadCount: 0 };
-  }
-}
-
-/**
- * Mark notifications as read.
- */
-export async function markAsRead(
-  userId: number,
-  notificationIds?: number[]
-): Promise<boolean> {
-  const db = getDb();
-  if (!db) return false;
-
-  try {
-    const conditions = [eq(inAppNotifications.userId, userId)];
-    if (notificationIds && notificationIds.length > 0) {
-      conditions.push(sql`${inAppNotifications.id} IN ${notificationIds}`);
-    }
-
-    await db
-      .update(inAppNotifications)
-      .set({
-        read: true,
-        readAt: new Date(),
-      })
-      .where(and(...conditions));
-
-    return true;
-  } catch (error) {
-    console.error("[Notifications] Failed to mark as read:", error);
-    return false;
-  }
-}
-
-/**
- * Get unread count for a user.
- */
-export async function getUnreadCount(
-  userId: number
-): Promise<number> {
-  const db = getDb();
-  if (!db) return 0;
-
-  try {
-    const [result] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(inAppNotifications)
-      .where(
-        and(
-          eq(inAppNotifications.userId, userId),
-          eq(inAppNotifications.read, false)
-        )
-      );
-
-    return result?.count ?? 0;
-  } catch (error) {
-    console.error("[Notifications] Failed to get unread count:", error);
-    return 0;
-  }
-}
-
-// ============================================================================
-// User Preferences
-// ============================================================================
-
-/**
- * Get user notification preferences.
- */
-export async function getUserPreferences(
-  userId: number
-): Promise<any | null> {
-  const db = getDb();
-  if (!db) return null;
-
-  try {
-    const [preferences] = await db
-      .select()
-      .from(notificationPreferences)
-      .where(eq(notificationPreferences.userId, userId))
-      .limit(1);
-
-    return preferences ?? null;
-  } catch (error) {
-    console.error("[Notifications] Failed to get preferences:", error);
-    return null;
-  }
-}
-
-/**
- * Update user notification preferences.
- */
-export async function updatePreferences(
-  userId: number,
-  preferences: {
-    emailEnabled?: boolean;
-    pushEnabled?: boolean;
-    inAppEnabled?: boolean;
-    smsEnabled?: boolean;
-    categories?: Record<string, { email: boolean; push: boolean; inApp: boolean }>;
-    quietHoursStart?: string;
-    quietHoursEnd?: string;
-    quietHoursTimezone?: string;
-  }
-): Promise<boolean> {
-  const db = getDb();
-  if (!db) return false;
-
-  try {
-    const [existing] = await db
-      .select()
-      .from(notificationPreferences)
-      .where(eq(notificationPreferences.userId, userId))
-      .limit(1);
-
-    if (existing) {
-      await db
-        .update(notificationPreferences)
-        .set({
-          emailEnabled: preferences.emailEnabled ?? existing.emailEnabled,
-          pushEnabled: preferences.pushEnabled ?? existing.pushEnabled,
-          inAppEnabled: preferences.inAppEnabled ?? existing.inAppEnabled,
-          smsEnabled: preferences.smsEnabled ?? existing.smsEnabled,
-          preferences: (preferences.categories ?? existing.preferences) as any,
-          quietHoursStart: preferences.quietHoursStart ?? existing.quietHoursStart,
-          quietHoursEnd: preferences.quietHoursEnd ?? existing.quietHoursEnd,
-          quietHoursTimezone: preferences.quietHoursTimezone ?? existing.quietHoursTimezone,
-          updatedAt: new Date(),
-        })
-        .where(eq(notificationPreferences.userId, userId));
-    } else {
-      await db.insert(notificationPreferences).values({
-        userId,
-        emailEnabled: preferences.emailEnabled ?? true,
-        pushEnabled: preferences.pushEnabled ?? true,
-        inAppEnabled: preferences.inAppEnabled ?? true,
-        smsEnabled: preferences.smsEnabled ?? false,          preferences: (preferences.categories ?? {
-            membership: { email: true, push: true, inApp: true },
-            elections: { email: true, push: true, inApp: true },
-            plenary: { email: true, push: true, inApp: true },
-            activities: { email: true, push: true, inApp: true },
-            finance: { email: true, push: true, inApp: true },
-            documents: { email: true, push: true, inApp: true },
-            system: { email: true, push: true, inApp: true },
-          }) as any,
-        quietHoursStart: preferences.quietHoursStart,
-        quietHoursEnd: preferences.quietHoursEnd,
-        quietHoursTimezone: preferences.quietHoursTimezone,
-      });
-    }
-
-    return true;
-  } catch (error) {
-    console.error("[Notifications] Failed to update preferences:", error);
-    return false;
-  }
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/**
- * Render a template with data.
- */
-function renderTemplate(
-  template: any,
+function interpolate(
+  template: string,
   data: Record<string, unknown>
-): {
-  subject?: string;
-  bodyHtml?: string;
-  bodyText?: string;
-} {
-  const render = (text: string | null): string | undefined => {
-    if (!text) return undefined;
-    return text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-      return String(data[key] ?? `{{${key}}}`);
-    });
-  };
-
-  return {
-    subject: render(template.subject),
-    bodyHtml: render(template.bodyHtml),
-    bodyText: render(template.bodyText),
-  };
+): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => {
+    const value = data[key];
+    return value !== undefined && value !== null ? String(value) : match;
+  });
 }
 
 /**
- * Get category from template key.
+ * Get all notification types and their templates.
  */
-function getCategoryFromTemplateKey(key: string): string {
-  const parts = key.split(".");
-  return parts[0] ?? "system";
+export function getNotificationTemplates(): Array<{
+  type: string;
+  subject: string;
+  channels: NotificationChannel[];
+  priority: NotificationPriority;
+}> {
+  return Object.entries(NOTIFICATION_TEMPLATES).map(([type, t]) => ({
+    type,
+    subject: t.subject,
+    channels: t.channels,
+    priority: t.priority,
+  }));
 }
 
-// ============================================================================
-// Default Templates
-// ============================================================================
-
-export const DEFAULT_TEMPLATES = [
-  {
-    key: "membership.application_received",
-    name: "Application Received",
-    type: "email" as const,
-    subject: "Your membership application has been received",
-    bodyHtml: `
-      <h2>Application Received</h2>
-      <p>Dear {{fullName}},</p>
-      <p>We have received your membership application for {{orgName}}.</p>
-      <p>Your application is now under review. We will notify you once a decision has been made.</p>
-      <p>Application Reference: #{{applicationId}}</p>
-      <p>Best regards,<br/>{{orgName}} Team</p>
-    `,
-    bodyText: "Dear {{fullName}}, We have received your membership application for {{orgName}}. Your application is now under review. Application Reference: #{{applicationId}}",
-    placeholders: [
-      { name: "fullName", description: "Applicant's full name", required: true },
-      { name: "orgName", description: "Organization name", required: true },
-      { name: "applicationId", description: "Application ID", required: true },
-    ],
-  },
-  {
-    key: "membership.application_approved",
-    name: "Application Approved",
-    type: "email" as const,
-    subject: "Your membership application has been approved!",
-    bodyHtml: `
-      <h2>Application Approved!</h2>
-      <p>Dear {{fullName}},</p>
-      <p>We are pleased to inform you that your membership application has been approved!</p>
-      <p>Your membership ID: <strong>{{membershipId}}</strong></p>
-      <p>Please log in to your portal to complete your profile and access member benefits.</p>
-      <p>Welcome to {{orgName}}!</p>
-      <p>Best regards,<br/>{{orgName}} Team</p>
-    `,
-    bodyText: "Dear {{fullName}}, Your membership application has been approved! Your membership ID: {{membershipId}}. Welcome to {{orgName}}!",
-    placeholders: [
-      { name: "fullName", description: "Member's full name", required: true },
-      { name: "orgName", description: "Organization name", required: true },
-      { name: "membershipId", description: "Membership ID", required: true },
-    ],
-  },
-  {
-    key: "election.voting_reminder",
-    name: "Election Voting Reminder",
-    type: "email" as const,
-    subject: "Reminder: Vote in {{electionTitle}}",
-    bodyHtml: `
-      <h2>Voting Reminder</h2>
-      <p>Dear Member,</p>
-      <p>This is a reminder that voting is now open for <strong>{{electionTitle}}</strong>.</p>
-      <p>Voting ends on: <strong>{{votingEnd}}</strong></p>
-      <p>Please log in to cast your ballot.</p>
-      <p>Your vote matters!</p>
-      <p>Best regards,<br/>{{orgName}} Elections Committee</p>
-    `,
-    bodyText: "Voting is now open for {{electionTitle}}. Voting ends on {{votingEnd}}. Please log in to cast your ballot.",
-    placeholders: [
-      { name: "electionTitle", description: "Election title", required: true },
-      { name: "votingEnd", description: "Voting end date", required: true },
-      { name: "orgName", description: "Organization name", required: true },
-    ],
-  },
-  {
-    key: "plenary.session_reminder",
-    name: "Plenary Session Reminder",
-    type: "email" as const,
-    subject: "Reminder: {{sessionTitle}}",
-    bodyHtml: `
-      <h2>Session Reminder</h2>
-      <p>Dear Member,</p>
-      <p>This is a reminder that <strong>{{sessionTitle}}</strong> is scheduled for <strong>{{sessionDate}}</strong>.</p>
-      <p>Please review the agenda and prepare accordingly.</p>
-      <p>Best regards,<br/>{{orgName}} Secretariat</p>
-    `,
-    bodyText: "Reminder: {{sessionTitle}} is scheduled for {{sessionDate}}. Please review the agenda.",
-    placeholders: [
-      { name: "sessionTitle", description: "Session title", required: true },
-      { name: "sessionDate", description: "Session date", required: true },
-      { name: "orgName", description: "Organization name", required: true },
-    ],
-  },
-];
-
 /**
- * Seed default notification templates.
+ * Get a specific notification template.
  */
-export async function seedDefaultTemplates(): Promise<void> {
-  for (const template of DEFAULT_TEMPLATES) {
-    await upsertTemplate(template.key, template.name, template.type, {
-      subject: template.subject,
-      bodyHtml: template.bodyHtml,
-      bodyText: template.bodyText,
-      placeholders: template.placeholders,
-    });
-  }
-  console.log("[Notifications] Seeded default templates.");
+export function getNotificationTemplate(
+  type: string
+): (typeof NOTIFICATION_TEMPLATES)[string] | null {
+  return NOTIFICATION_TEMPLATES[type] ?? null;
 }

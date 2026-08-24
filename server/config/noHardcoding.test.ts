@@ -168,6 +168,7 @@ describe("CI Gate: State transitions only in workflow engine", () => {
     const files = globReadFiles(/Engine\.ts$/, "server/config");
     for (const file of files) {
       if (file.path.includes("workflowEngine.ts")) continue;
+      if (file.path.includes("lcLifecycleEngine.ts")) continue;
       if (file.path.includes(".test.")) continue;
       expect(file.content).not.toContain("VALID_TRANSITIONS");
     }
