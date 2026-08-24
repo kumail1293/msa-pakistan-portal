@@ -265,6 +265,22 @@ export async function startWorkflow(
 }
 
 /**
+ * Validate that a workflow state transition is legal.
+ * Prevents illegal transitions like cancelled->running, completed->running, etc.
+ */
+export function isValidTransition(fromStatus: string, toStatus: string): boolean {
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    draft: ["running"],
+    running: ["completed", "rejected", "cancelled", "paused"],
+    paused: ["running", "cancelled"],
+    // completed/cancelled/rejected are terminal — no outgoing transitions
+  };
+  const allowed = VALID_TRANSITIONS[fromStatus];
+  if (!allowed) return false;
+  return allowed.includes(toStatus);
+}
+
+/**
  * Advance a workflow instance to the next stage.
  */
 export async function advanceWorkflow(
@@ -275,9 +291,9 @@ export async function advanceWorkflow(
     userId?: number;
     metadata?: Record<string, unknown>;
   } = {}
-): Promise<{ success: boolean; nextStage?: string; completed?: boolean }> {
+): Promise<{ success: boolean; nextStage?: string; completed?: boolean; error?: string }> {
   const db = getDb();
-  if (!db) return { success: false };
+  if (!db) return { success: false, error: "Database not available" };
 
   try {
     // Get current instance
@@ -287,8 +303,24 @@ export async function advanceWorkflow(
       .where(eq(workflowInstances.id, instanceId))
       .limit(1);
 
-    if (!instance || instance.status !== "running") {
-      return { success: false };
+    if (!instance) {
+      return { success: false, error: "Workflow instance not found" };
+    }
+
+    // SECURITY: Validate state machine transition
+    if (!isValidTransition(instance.status, "running")) {
+      await logAuditEvent({
+        userId: options.userId,
+        action: "workflow.transition_rejected",
+        entityType: instance.entityType,
+        entityId: instance.entityId,
+        metadata: { instanceId, from: instance.status, attempted: "advance" },
+      });
+      return { success: false, error: `Cannot advance workflow in status '${instance.status}'` };
+    }
+
+    if (instance.status !== "running") {
+      return { success: false, error: `Workflow is not running (status: ${instance.status})` };
     }
 
     // Complete the current task
@@ -403,9 +435,9 @@ export async function cancelWorkflow(
   instanceId: number,
   reason?: string,
   userId?: number
-): Promise<boolean> {
+): Promise<{ success: boolean; error?: string }> {
   const db = getDb();
-  if (!db) return false;
+  if (!db) return { success: false, error: "Database not available" };
 
   try {
     const [instance] = await db
@@ -414,7 +446,19 @@ export async function cancelWorkflow(
       .where(eq(workflowInstances.id, instanceId))
       .limit(1);
 
-    if (!instance) return false;
+    if (!instance) return { success: false, error: "Instance not found" };
+
+    // SECURITY: Only running or paused workflows can be cancelled
+    if (!isValidTransition(instance.status, "cancelled")) {
+      await logAuditEvent({
+        userId,
+        action: "workflow.transition_rejected",
+        entityType: instance.entityType,
+        entityId: instance.entityId,
+        metadata: { instanceId, from: instance.status, attempted: "cancel" },
+      });
+      return { success: false, error: `Cannot cancel workflow in status '${instance.status}'` };
+    }
 
     await db
       .update(workflowInstances)
@@ -434,10 +478,10 @@ export async function cancelWorkflow(
       metadata: { instanceId },
     });
 
-    return true;
+    return { success: true };
   } catch (error) {
     console.error("[Workflow] Failed to cancel workflow:", error);
-    return false;
+    return { success: false, error: "Internal error" };
   }
 }
 

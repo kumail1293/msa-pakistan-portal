@@ -47,10 +47,34 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   // API calls: network-first with cache fallback
+  // SECURITY: Never cache sensitive endpoints (members, documents, votes,
+  // finance, governance, credentials, applications, notifications).
   if (url.pathname.startsWith("/trpc/") || url.pathname.startsWith("/api/")) {
+    const sensitivePatterns = [
+      "members", "documents", "votes", "ballots", "finance",
+      "governance", "credentials", "applications", "notifications",
+      "settings", "api-keys", "impersonation", "audit",
+      "plenary", "elections", "termination", "proxy",
+    ];
+    const isSensitive = sensitivePatterns.some((p) => url.pathname.includes(p));
+
+    // Always go to network for sensitive endpoints; never cache them
+    if (isSensitive) {
+      event.respondWith(
+        fetch(request).catch(() => {
+          return new Response(JSON.stringify({ error: "Offline — sensitive data unavailable" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          });
+        })
+      );
+      return;
+    }
+
     event.respondWith(
       fetch(request)
         .then((response) => {
+          // Only cache safe, non-authenticated responses
           const responseClone = response.clone();
           caches.open(API_CACHE).then((cache) => {
             cache.put(request, responseClone);

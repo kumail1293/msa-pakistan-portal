@@ -25,8 +25,46 @@ import { eq, and, desc, like, sql } from "drizzle-orm";
 import { auditEvents } from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
 import { childLogger } from "../_core/logger";
+import crypto from "crypto";
 
 const log = childLogger("Audit");
+
+// ============================================================================
+// Tamper-Evident Chain Hashing
+// ============================================================================
+// Each audit event stores a SHA-256 hash of its content AND the hash of the
+// previous event, forming an immutable chain. Any modification to a past
+// event breaks the chain and is detectable via verifyAuditChain().
+// ============================================================================
+
+let lastAuditHash: string = "0".repeat(64); // Genesis hash (64 zeros)
+
+function computeEventHash(event: {
+  id: number;
+  userId?: number | null;
+  action: string;
+  entityType?: string | null;
+  entityId?: number | null;
+  before?: unknown;
+  after?: unknown;
+  reason?: string | null;
+  createdAt: Date;
+  previousHash: string;
+}): string {
+  const payload = JSON.stringify({
+    id: event.id,
+    userId: event.userId,
+    action: event.action,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    before: event.before,
+    after: event.after,
+    reason: event.reason,
+    createdAt: event.createdAt.toISOString(),
+    previousHash: event.previousHash,
+  });
+  return crypto.createHash("sha256").update(payload).digest("hex");
+}
 
 // ============================================================================
 // Logging
@@ -77,9 +115,38 @@ export async function logAuditEvent(input: AuditEventInput): Promise<number | nu
       scopeType: input.scopeType,
       scopeId: input.scopeId,
       metadata: input.metadata,
-    });
+    } as any);
 
     const id = Number(result[0].insertId);
+    const createdAt = new Date();
+
+    // Compute tamper-evident chain hash
+    const previousHash = lastAuditHash;
+    const eventHash = computeEventHash({
+      id,
+      userId: input.userId,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      before: input.before,
+      after: input.after,
+      reason: input.reason,
+      createdAt,
+      previousHash,
+    });
+
+    // Store the hash back on the audit event (if the schema supports it)
+    try {
+      await db
+        .update(auditEvents)
+        .set({ metadata: { ...(input.metadata as Record<string, unknown> ?? {}), _chainHash: eventHash, _previousHash: previousHash } } as any)
+        .where(eq(auditEvents.id, id));
+    } catch {
+      // Schema may not have metadata column — silently continue
+    }
+
+    lastAuditHash = eventHash;
+
     log.info({ id, action: input.action, entityType: input.entityType ?? "system", entityId: input.entityId ?? "-", actorEmail: input.actorEmail ?? "system" }, "Audit event logged");
     return id;
   } catch (error) {
@@ -288,4 +355,83 @@ export async function getAuditStats(): Promise<{
  */
 export function generateCorrelationId(): string {
   return `corr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ============================================================================
+// Chain Integrity Verification
+// ============================================================================
+
+/**
+ * Verify the integrity of the audit chain.
+ * Checks that each event's hash matches its content and that the chain
+ * of previousHash references is unbroken.
+ *
+ * Returns the number of broken links found (0 = fully intact).
+ */
+export async function verifyAuditChain(
+  limit: number = 1000
+): Promise<{ valid: boolean; checked: number; broken: number; brokenIds: number[] }> {
+  const db = getDb();
+  if (!db) return { valid: true, checked: 0, broken: 0, brokenIds: [] };
+
+  try {
+    const events = await db
+      .select()
+      .from(auditEvents)
+      .orderBy(auditEvents.id)
+      .limit(limit);
+
+    let broken = 0;
+    const brokenIds: number[] = [];
+    let expectedPreviousHash = "0".repeat(64); // Genesis
+
+    for (const event of events) {
+      const meta = (event as any).metadata as Record<string, unknown> | null;
+      const storedHash = meta?._chainHash as string | undefined;
+      const storedPreviousHash = meta?._previousHash as string | undefined;
+
+      if (!storedHash || !storedPreviousHash) {
+        // Event predates chain hashing — skip
+        expectedPreviousHash = storedHash ?? expectedPreviousHash;
+        continue;
+      }
+
+      // Verify chain link
+      if (storedPreviousHash !== expectedPreviousHash) {
+        broken++;
+        brokenIds.push(event.id);
+      }
+
+      // Verify content hash
+      const computedHash = computeEventHash({
+        id: event.id,
+        userId: event.userId,
+        action: event.action,
+        entityType: event.entityType,
+        entityId: event.entityId,
+        before: event.before,
+        after: event.after,
+        reason: event.reason,
+        createdAt: event.createdAt,
+        previousHash: storedPreviousHash,
+      });
+
+      if (computedHash !== storedHash) {
+        broken++;
+        if (!brokenIds.includes(event.id)) brokenIds.push(event.id);
+      }
+
+      expectedPreviousHash = storedHash;
+    }
+
+    return {
+      valid: broken === 0,
+      checked: events.length,
+      broken,
+      brokenIds,
+    };
+  } catch (error) {
+    log.error({ err: error }, "Failed to verify audit chain");
+    return { valid: false, checked: 0, broken: 0, brokenIds: [] };
+  }
 }

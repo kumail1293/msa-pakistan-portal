@@ -17,15 +17,23 @@ function generateApiKey(): string {
   return key;
 }
 
-/** Hash a string (simple SHA-256 simulation for display) */
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
+/** Hash a string with SHA-256 for secure key storage */
+function hashApiKey(str: string): string {
+  // Use crypto.createHash for proper cryptographic hashing
+  // Falls back to a simple hash only in edge cases (browser bundling)
+  try {
+    const crypto = require("crypto");
+    return crypto.createHash("sha256").update(str).digest("hex");
+  } catch {
+    // Fallback for environments without Node.js crypto
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(16, "0");
   }
-  return Math.abs(hash).toString(16).padStart(16, "0");
 }
 
 export const apiPlatformEngine = {
@@ -41,7 +49,7 @@ export const apiPlatformEngine = {
       const prefix = rawKey.substring(0, 12) + "...";
       const [result] = await db.insert(apiKeys).values({
         name: input.name,
-        keyHash: simpleHash(rawKey),
+        keyHash: hashApiKey(rawKey),
         keyPrefix: prefix,
         userId: input.userId,
         permissions: input.permissions,
@@ -57,7 +65,7 @@ export const apiPlatformEngine = {
     const db = getDb();
     if (!db) return { valid: false };
     try {
-      const keyHash = simpleHash(rawKey);
+      const keyHash = hashApiKey(rawKey);
       const [key] = await db.select().from(apiKeys)
         .where(and(eq(apiKeys.keyHash, keyHash), eq(apiKeys.status, "active" as any))).limit(1);
       if (!key) return { valid: false };
@@ -76,6 +84,53 @@ export const apiPlatformEngine = {
       await db.update(apiKeys).set({ status: "revoked" as any }).where(eq(apiKeys.id, keyId));
       return true;
     } catch { return false; }
+  },
+
+  /** Rotate an API key — revokes old, creates new with same permissions */
+  rotateKey: async (keyId: number): Promise<{ id: number; key: string; prefix: string } | null> => {
+    const db = getDb();
+    if (!db) return null;
+    try {
+      const [oldKey] = await db.select().from(apiKeys).where(eq(apiKeys.id, keyId)).limit(1);
+      if (!oldKey) return null;
+
+      // Revoke old key
+      await db.update(apiKeys).set({ status: "revoked" as any }).where(eq(apiKeys.id, keyId));
+
+      // Create new key with same permissions
+      const rawKey = generateApiKey();
+      const prefix = rawKey.substring(0, 12) + "...";
+      const [result] = await db.insert(apiKeys).values({
+        name: `${oldKey.name} (rotated)`,
+        keyHash: hashApiKey(rawKey),
+        keyPrefix: prefix,
+        userId: oldKey.userId,
+        permissions: oldKey.permissions,
+        rateLimit: oldKey.rateLimit,
+        expiresAt: oldKey.expiresAt,
+      });
+      return { id: Number((result as any)[0].insertId), key: rawKey, prefix };
+    } catch { return null; }
+  },
+
+  /** Check for expired keys and revoke them */
+  revokeExpiredKeys: async (): Promise<number> => {
+    const db = getDb();
+    if (!db) return 0;
+    try {
+      const now = new Date();
+      // Find active keys that have expired
+      const expired = await db.select().from(apiKeys)
+        .where(and(
+          eq(apiKeys.status, "active" as any),
+          sql`${apiKeys.expiresAt} IS NOT NULL AND ${apiKeys.expiresAt} < ${now}`
+        ));
+
+      for (const key of expired) {
+        await db.update(apiKeys).set({ status: "revoked" as any }).where(eq(apiKeys.id, key.id));
+      }
+      return expired.length;
+    } catch { return 0; }
   },
 
   /** List API keys */
