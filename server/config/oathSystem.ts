@@ -332,13 +332,8 @@ export const DEFAULT_OATH_TEMPLATES = {
 // ============================================================================
 
 async function computeHash(input: string): Promise<string> {
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return `sig_${Math.abs(hash).toString(16).padStart(8, "0")}`;
+  const crypto = await import("crypto");
+  return `sig_${crypto.createHash("sha256").update(input).digest("hex")}`;
 }
 
 async function computeAuditHash(
@@ -346,14 +341,9 @@ async function computeAuditHash(
   oathDefId: number,
   timestamp: Date
 ): Promise<string> {
+  const crypto = await import("crypto");
   const input = `${userId}-${oathDefId}-${timestamp.toISOString()}`;
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return `audit_${Math.abs(hash).toString(16).padStart(8, "0")}`;
+  return `audit_${crypto.createHash("sha256").update(input).digest("hex")}`;
 }
 
 export default oathSystem;

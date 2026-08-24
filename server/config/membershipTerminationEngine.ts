@@ -15,6 +15,7 @@
 
 import { eq, and, sql } from "drizzle-orm";
 import { getDb } from "../db";
+import { getConfigNumber } from "./configService";
 import {
   membershipTerminations,
   type MembershipTermination,
@@ -273,10 +274,11 @@ export const membershipTerminationEngine = {
     }
 
     if (termination.judgingPanelDecisionAt) {
+      const appealDeadlineDays = await getConfigNumber("member.appealDeadlineDays", 7);
       const deadline = new Date(termination.judgingPanelDecisionAt);
-      deadline.setDate(deadline.getDate() + 7);
+      deadline.setDate(deadline.getDate() + appealDeadlineDays);
       if (new Date() > deadline) {
-        throw new Error("Appeal deadline has passed (7 days from panel decision).");
+        throw new Error(`Appeal deadline has passed (${appealDeadlineDays} days from panel decision).`);
       }
     }
 

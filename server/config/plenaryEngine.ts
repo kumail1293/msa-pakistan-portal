@@ -18,6 +18,7 @@
 
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getDb } from "../db";
+import { getConfigNumber, getConfig } from "./configService";
 import {
   plenarySessions,
   agendaItems,
@@ -29,29 +30,31 @@ import {
   pointsOfOrder,
 } from "../../drizzle/schema.governance";
 
-/** Default plenary rules based on standard parliamentary procedure */
-const DEFAULT_RULES = {
-  quorumPercentage: 50,
-  defaultVotingMethod: "simple_majority",
-  allowedVotingMethods: ["simple_majority", "absolute_majority", "two_thirds", "consensus", "roll_call", "weighted"],
-  maxSpeakerTimeSeconds: 300,
-  maxSpeakersPerSide: 5,
-  allowClosingStatements: true,
-  allowAmendments: true,
-  amendmentRequiresSecond: true,
-  allowClosureOfDebate: true,
-  allowSuspensionOfRules: true,
-  allowAdjournment: true,
-  allowPointsOfOrder: true,
-  chairRulingBinding: true,
-  appealAllowed: true,
-  adoptionThreshold: 50, // percentage
-  amendmentThreshold: 50,
-  maxSessionDurationHours: 8,
-  maxDebateTimePerItemMinutes: 30,
-  requireRollCall: false,
-  publishMinutes: true,
-};
+/** Build default plenary rules from configuration. All values are configurable via admin. */
+async function getDefaultRules(): Promise<Record<string, unknown>> {
+  return {
+    quorumPercentage: await getConfigNumber("gov.quorumNumerator", 1) / Math.max(await getConfigNumber("gov.quorumDenominator", 3), 1) * 100,
+    defaultVotingMethod: await getConfig("plenary.defaultVotingMethod", "simple_majority"),
+    allowedVotingMethods: ["simple_majority", "absolute_majority", "two_thirds", "consensus", "roll_call", "weighted"],
+    maxSpeakerTimeSeconds: await getConfigNumber("plenary.speakingTimeSeconds", 120),
+    maxSpeakersPerSide: 5,
+    allowClosingStatements: true,
+    allowAmendments: true,
+    amendmentRequiresSecond: true,
+    allowClosureOfDebate: true,
+    allowSuspensionOfRules: true,
+    allowAdjournment: true,
+    allowPointsOfOrder: true,
+    chairRulingBinding: true,
+    appealAllowed: true,
+    adoptionThreshold: 50,
+    amendmentThreshold: 50,
+    maxSessionDurationHours: 8,
+    maxDebateTimePerItemMinutes: 30,
+    requireRollCall: false,
+    publishMinutes: true,
+  };
+}
 
 export const plenaryEngine = {
   /** Create a new plenary session */
@@ -80,7 +83,7 @@ export const plenaryEngine = {
         secretaryId: input.secretaryId,
         organizationId: input.organizationId,
         createdById: input.createdById,
-        rules: { ...DEFAULT_RULES, ...input.rules } as any,
+        rules: { ...(await getDefaultRules()), ...input.rules } as any,
       });
       return { id: Number((result as any)[0].insertId) };
     } catch {

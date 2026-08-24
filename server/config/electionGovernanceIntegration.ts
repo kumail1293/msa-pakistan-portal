@@ -160,9 +160,9 @@ export async function calculateElectionVotingPower(
     let plenaryVotes = (params.plenary_votes as number) ?? 0;
     let electionVotes = (params.election_votes as number) ?? 0;
 
-    // B-8.7.4: If <10 delegates, election votes = delegate count
+    // B-8.7.4: If <10 delegates, election votes = delegate count (configurable)
     const delegateCount = delegation.delegateCount ?? 0;
-    const minDelegatesForFullVotes = 10;
+    const minDelegatesForFullVotes = ((await getParameter("voting.min_delegates_for_full_votes")) as number) ?? 10;
 
     let calculation = "";
 

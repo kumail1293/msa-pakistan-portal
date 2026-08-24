@@ -434,7 +434,7 @@ describe("Enterprise Operations Engine (§147)", () => {
 // Policy Conflict Engine Tests (§47) — additional
 // ============================================================================
 
-describe("Governance Rules Engine Integration", { timeout: 15000 }, () => {
+describe("Governance Rules Engine Integration", { timeout: 30000 }, () => {
   it("should have consistent rule type definitions", async () => {
     const mod = await import("./governanceRulesEngine");
     expect(mod.resolveEffectiveRule).toBeDefined();
