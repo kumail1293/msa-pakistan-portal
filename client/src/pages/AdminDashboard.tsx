@@ -6,6 +6,8 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/StatCard";
 import {
   BarChart3,
   Calendar,
@@ -67,8 +69,8 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="msap-page min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#138A73]" />
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-[#138A73]" />
       </div>
     );
   }
@@ -102,45 +104,41 @@ export default function AdminDashboard() {
   ];
 
   const modules = [
-    { label: "Activities", icon: Calendar, count: totalActivities, detail: `${actData["draft"] ?? 0} drafts, ${actData["active"] ?? actData["in_progress"] ?? 0} active`, color: "bg-emerald-50 text-emerald-600 border-emerald-100", path: "/admin/activities" },
-    { label: "Events", icon: Calendar, count: totalEvents, detail: `${evtData["published"] ?? 0} published, ${evtData["draft"] ?? 0} drafts`, color: "bg-blue-50 text-blue-600 border-blue-100", path: "/admin/events" },
-    { label: "Elections", icon: Vote, count: totalElections, detail: `${elecData["voting_active"] ?? elecData["active"] ?? 0} active, ${elecData["certified"] ?? 0} certified`, color: "bg-indigo-50 text-indigo-600 border-indigo-100", path: "/admin/elections" },
-    { label: "Plenary", icon: Gavel, count: totalPlenary, detail: `${plenData["in_progress"] ?? 0} live, ${plenData["completed"] ?? 0} completed`, color: "bg-pink-50 text-pink-600 border-pink-100", path: "/admin/plenary" },
-    { label: "Finance", icon: DollarSign, count: finData?.transactions ?? 0, detail: `PKR ${(finData?.totalIncome ?? 0).toLocaleString()} income`, color: "bg-amber-50 text-amber-600 border-amber-100", path: "/admin/finance" },
-    { label: "NEF/NRF", icon: Coins, count: totalNefCycles, detail: `${nefData["status_open"] ?? 0} open cycles`, color: "bg-violet-50 text-violet-600 border-violet-100", path: "/admin/nef-nrf" },
-    { label: "Documents", icon: FileText, count: totalDocs, detail: `${docData["published"] ?? 0} published, ${docData["draft"] ?? 0} drafts`, color: "bg-orange-50 text-orange-600 border-orange-100", path: "/admin/documents" },
-    { label: "Communications", icon: Megaphone, count: totalAnnouncements, detail: `${commsData["sent"] ?? 0} sent, ${commsData["queued"] ?? 0} queued`, color: "bg-cyan-50 text-cyan-600 border-cyan-100", path: "/admin/communications" },
+    { label: "Activities", icon: <Calendar className="h-4 w-4" />, count: totalActivities, detail: `${actData["draft"] ?? 0} drafts, ${actData["active"] ?? actData["in_progress"] ?? 0} active`, color: "bg-emerald-50 text-emerald-600 border-emerald-100", path: "/admin/activities" },
+    { label: "Events", icon: <Calendar className="h-4 w-4" />, count: totalEvents, detail: `${evtData["published"] ?? 0} published, ${evtData["draft"] ?? 0} drafts`, color: "bg-blue-50 text-blue-600 border-blue-100", path: "/admin/events" },
+    { label: "Elections", icon: <Vote className="h-4 w-4" />, count: totalElections, detail: `${elecData["voting_active"] ?? elecData["active"] ?? 0} active, ${elecData["certified"] ?? 0} certified`, color: "bg-indigo-50 text-indigo-600 border-indigo-100", path: "/admin/elections" },
+    { label: "Plenary", icon: <Gavel className="h-4 w-4" />, count: totalPlenary, detail: `${plenData["in_progress"] ?? 0} live, ${plenData["completed"] ?? 0} completed`, color: "bg-pink-50 text-pink-600 border-pink-100", path: "/admin/plenary" },
+    { label: "Finance", icon: <DollarSign className="h-4 w-4" />, count: finData?.transactions ?? 0, detail: `PKR ${(finData?.totalIncome ?? 0).toLocaleString()} income`, color: "bg-amber-50 text-amber-600 border-amber-100", path: "/admin/finance" },
+    { label: "NEF/NRF", icon: <Coins className="h-4 w-4" />, count: totalNefCycles, detail: `${nefData["status_open"] ?? 0} open cycles`, color: "bg-violet-50 text-violet-600 border-violet-100", path: "/admin/nef-nrf" },
+    { label: "Documents", icon: <FileText className="h-4 w-4" />, count: totalDocs, detail: `${docData["published"] ?? 0} published, ${docData["draft"] ?? 0} drafts`, color: "bg-orange-50 text-orange-600 border-orange-100", path: "/admin/documents" },
+    { label: "Communications", icon: <Megaphone className="h-4 w-4" />, count: totalAnnouncements, detail: `${commsData["sent"] ?? 0} sent, ${commsData["queued"] ?? 0} queued`, color: "bg-cyan-50 text-cyan-600 border-cyan-100", path: "/admin/communications" },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#1B355E] sm:text-3xl">
-            Admin Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-[#66788D]">Platform overview across all modules</p>
-        </div>
-        <Button onClick={() => navigate("/official")} variant="outline" className="border-[#D9E4E1] self-start">
-          <ShieldCheck className="mr-2 h-4 w-4" /> Official Home
-        </Button>
-      </div>
+      <PageHeader
+        label="Overview"
+        title="Admin Dashboard"
+        description="Platform overview across all modules"
+        action={
+          <Button onClick={() => navigate("/official")} variant="outline" className="border-[#D9E4E1]">
+            <ShieldCheck className="mr-2 h-4 w-4" /> Official Home
+          </Button>
+        }
+      />
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {modules.slice(0, 4).map((mod) => (
-          <Card key={mod.label} className="overflow-hidden">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${mod.color} border`}>
-                  <mod.icon className="h-4 w-4" />
-                </div>
-                <span className="text-2xl font-bold text-[#1B355E]">{mod.count}</span>
-              </div>
-              <p className="mt-2 text-xs font-medium text-[#66788D]">{mod.label}</p>
-            </CardContent>
-          </Card>
+          <StatCard
+            key={mod.label}
+            icon={mod.icon}
+            label={mod.label}
+            value={mod.count}
+            iconColor={mod.color}
+            onClick={() => navigate(mod.path)}
+          />
         ))}
       </div>
 
@@ -162,11 +160,11 @@ export default function AdminDashboard() {
               >
                 <div className="flex items-start justify-between">
                   <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${mod.color} border transition-transform group-hover:scale-110`}>
-                    <mod.icon className="h-4 w-4" />
+                    {mod.icon}
                   </div>
                   <span className="text-xl font-bold text-[#1B355E]">{mod.count}</span>
                 </div>
-                <h4 className="mt-3 font-semibold text-sm text-[#1B355E]">{mod.label}</h4>
+                <h4 className="mt-3 text-sm font-semibold text-[#1B355E]">{mod.label}</h4>
                 <p className="mt-0.5 text-[11px] text-[#66788D] line-clamp-1">{mod.detail}</p>
                 <div className="mt-2 flex items-center text-[11px] font-medium text-[#106E5B] opacity-0 transition-opacity group-hover:opacity-100">
                   Open module <ChevronRight className="ml-0.5 h-3 w-3" />
@@ -197,7 +195,7 @@ export default function AdminDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-[#8A9BAE]">
+              <div className="flex h-[260px] items-center justify-center text-[#8A9BAE]">
                 <p className="text-sm">No module data yet.</p>
               </div>
             )}
@@ -219,7 +217,7 @@ export default function AdminDashboard() {
                     <IdCard className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <p className="font-bold text-sm text-[#1B355E]">
+                    <p className="text-sm font-bold text-[#1B355E]">
                       {pendingCards.data?.length ?? 0} pending
                     </p>
                     <p className="text-[11px] text-[#5D7086]">card requests</p>
@@ -237,11 +235,11 @@ export default function AdminDashboard() {
                   {presidentSig.data ? "Set ✓" : "Not set — placeholder used"}
                 </p>
                 <div className="mt-2 flex gap-2">
-                  <Button size="sm" variant="outline" className="h-7 text-xs border-[#1B355E] text-[#1B355E]" onClick={() => sigFileRef.current?.click()}>
+                  <Button size="sm" variant="outline" className="h-7 border-[#1B355E] text-xs text-[#1B355E]" onClick={() => sigFileRef.current?.click()}>
                     <Upload className="mr-1 h-3 w-3" /> Upload
                   </Button>
                   {presidentSig.data && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs border-red-200 text-red-600" onClick={() => clearPresidentSig.mutate()}>
+                    <Button size="sm" variant="outline" className="h-7 border-red-200 text-xs text-red-600" onClick={() => clearPresidentSig.mutate()}>
                       <XCircle className="mr-1 h-3 w-3" /> Remove
                     </Button>
                   )}
@@ -249,7 +247,7 @@ export default function AdminDashboard() {
                 {sigDraft && (
                   <div className="mt-2 flex items-center gap-2">
                     <img src={sigDraft} alt="Preview" className="h-8 rounded border" />
-                    <Button size="sm" className="h-7 text-xs bg-[#106E5B] text-white" disabled={setPresidentSig.isPending} onClick={() => setPresidentSig.mutate({ dataUrl: sigDraft })}>
+                    <Button size="sm" className="h-7 bg-[#106E5B] text-xs text-white" disabled={setPresidentSig.isPending} onClick={() => setPresidentSig.mutate({ dataUrl: sigDraft })}>
                       {setPresidentSig.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
                       {" "}Save
                     </Button>
