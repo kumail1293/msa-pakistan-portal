@@ -49,6 +49,7 @@ import {
 import { users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { logAuditEvent } from "./auditService";
+import { getCurrentGovernanceVersion } from "./termService";
 import { resolveEffectiveRule, getParameter } from "./governanceRulesEngine";
 import { calculateVoteEntitlement } from "./governanceRulesEngine";
 
@@ -613,7 +614,7 @@ export async function snapshotEligibility(
     }
 
     const metadata = (election.metadata as Record<string, unknown>) ?? {};
-    const governanceVersion = (metadata.governanceVersion as string) ?? "2025-26";
+    const governanceVersion = (metadata.governanceVersion as string) ?? await getCurrentGovernanceVersion();
 
     const snapshot: EligibilitySnapshot = {
       electionId,
@@ -773,7 +774,7 @@ export async function certifyElectionResults(
       .where(eq(elections.id, electionId));
 
     const electionMetadata = (election.metadata as Record<string, unknown>) ?? {};
-    const governanceVersion = (electionMetadata.governanceVersion as string) ?? "2025-26";
+    const governanceVersion = (electionMetadata.governanceVersion as string) ?? await getCurrentGovernanceVersion();
 
     const certification: ElectionResultCertification = {
       electionId,

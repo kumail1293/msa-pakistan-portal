@@ -171,6 +171,8 @@ export type CardData = {
   reissueRequested: boolean;
   holderSignature: HolderSignature;
   president: { name: string; title: string; signatureUrl: string | null };
+  /** Term display string, e.g. "2025–26". Resolved server-side from config. */
+  termDisplay?: string;
 };
 
 // Shared label/value styles
@@ -252,7 +254,7 @@ export function MembershipCardFront({
               NATIONAL MEMBERSHIP CARD
             </div>
             <div style={{ fontSize: 4.2, fontWeight: 600, letterSpacing: 1.8, color: GOLD_LIGHT, marginTop: 1.5 }}>
-              {isPendingIssuance ? "TERM 2025–26 · PENDING ISSUANCE" : `TERM 2025–26 · ${(card.status || "MEMBER").toUpperCase()}`}
+              {isPendingIssuance ? `TERM ${card.termDisplay ?? "2025–26"} · PENDING ISSUANCE` : `TERM ${card.termDisplay ?? "2025–26"} · ${(card.status || "MEMBER").toUpperCase()}`}
             </div>
           </div>
         </div>
@@ -638,7 +640,7 @@ export function MembershipCardBack({
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 5.2, fontWeight: 800, color: NAVY, letterSpacing: 0.5 }}>msapakistan.org</div>
           <div style={{ fontSize: 4.4, color: INK_SOFT, marginTop: 1.5, fontFamily: MONO }}>vpm@msapakistan.org</div>
-          <div style={{ fontSize: 4, color: "#7C8CA0", marginTop: 1.5, letterSpacing: 0.7 }}>MSA PAKISTAN · NATIONAL OFFICE · TERM 2025–26</div>
+          <div style={{ fontSize: 4, color: "#7C8CA0", marginTop: 1.5, letterSpacing: 0.7 }}>MSA PAKISTAN · NATIONAL OFFICE · TERM {card.termDisplay ?? "2025–26"}</div>
         </div>
       </div>
     </div>

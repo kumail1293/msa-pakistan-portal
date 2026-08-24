@@ -3688,6 +3688,51 @@ export const appRouter = router({
       }),
     }),
 
+    // ── Term & Governance Version Management (Phase 2) ───────────────
+    term: router({
+      /** Get current term information. */
+      current: officialModuleProcedure("config").query(async () => {
+        const { getCurrentTerm } = await import("./config/termService");
+        return getCurrentTerm();
+      }),
+
+      /** Get current governance version. */
+      governanceVersion: officialModuleProcedure("config").query(async () => {
+        const { getCurrentGovernanceVersion } = await import("./config/termService");
+        return { version: await getCurrentGovernanceVersion() };
+      }),
+
+      /** Update term configuration. */
+      update: superAdminProcedure
+        .input(z.object({
+          termName: z.string().max(50).optional(),
+          governanceVersion: z.string().max(50).optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          durationMonths: z.number().optional(),
+          handoverWeeks: z.number().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+          const entries: Array<{ key: string; value: string; category: string }> = [];
+          if (input.termName) entries.push({ key: "gov.currentTerm", value: input.termName, category: "governance" });
+          if (input.governanceVersion) entries.push({ key: "gov.currentVersion", value: input.governanceVersion, category: "governance" });
+          if (input.startDate) entries.push({ key: "gov.termStartDate", value: input.startDate, category: "governance" });
+          if (input.endDate) entries.push({ key: "gov.termEndDate", value: input.endDate, category: "governance" });
+          if (input.durationMonths !== undefined) entries.push({ key: "gov.termDurationMonths", value: String(input.durationMonths), category: "governance" });
+          if (input.handoverWeeks !== undefined) entries.push({ key: "gov.handoverPeriodWeeks", value: String(input.handoverWeeks), category: "governance" });
+          if (entries.length > 0) {
+            await setConfigs(entries);
+          }
+          await logAuditForUser(ctx.user!, "term.updated", {
+            category: "governance",
+            entityType: "term",
+            after: input as Record<string, unknown>,
+          });
+          const { getCurrentTerm } = await import("./config/termService");
+          return getCurrentTerm();
+        }),
+    }),
+
     // ── System Info ──────────────────────────────────────────────────
     seedDefaults: superAdminProcedure.mutation(async ({ ctx }) => {
       await seedDefaultConfigs();

@@ -45,6 +45,7 @@ import {
   queuePasswordSetupEmail,
 } from "./emailService";
 import { childLogger } from "../_core/logger";
+import { getTermDisplayString } from "../config/termService";
 
 const log = childLogger("MemberAccount");
 
@@ -1722,6 +1723,8 @@ export type MemberCardData = {
     reviewedAt: Date | null;
   };
   president: { name: string; title: string; signatureUrl: string | null };
+  /** Term display string resolved from config, e.g. "2025–26" */
+  termDisplay: string;
 };
 
 function captureIdentity(user: StoredUser): CardIdentitySnapshot {
@@ -1785,6 +1788,7 @@ export async function buildMemberCard(userId: number): Promise<MemberCardData | 
       title: await resolvePresidentTitle(),
       signatureUrl: currentPresidentSignatureUrl(),
     },
+    termDisplay: await getTermDisplayString(),
   };
 }
 

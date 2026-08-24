@@ -427,6 +427,314 @@ export const CONFIG_DEFINITIONS: ConfigDefinition[] = [
     category: "features",
     description: "Enable opportunity listings",
   },
+
+  // ── Governance & Terms (Phase 2) ───────────────────────────────────
+  {
+    key: "gov.currentVersion",
+    defaultValue: "2025-26",
+    category: "governance",
+    description: "Current governance version identifier",
+  },
+  {
+    key: "gov.currentTerm",
+    defaultValue: "2025-26",
+    category: "governance",
+    description: "Current term identifier (display name)",
+  },
+  {
+    key: "gov.termStartDate",
+    defaultValue: "2025-10-01",
+    category: "governance",
+    description: "Current term start date (YYYY-MM-DD)",
+  },
+  {
+    key: "gov.termEndDate",
+    defaultValue: "2026-09-30",
+    category: "governance",
+    description: "Current term end date (YYYY-MM-DD)",
+  },
+  {
+    key: "gov.termDurationMonths",
+    defaultValue: "12",
+    category: "governance",
+    description: "Standard term of office duration in months",
+  },
+  {
+    key: "gov.handoverPeriodWeeks",
+    defaultValue: "2",
+    category: "governance",
+    description: "Overlap period between outgoing and incoming officials",
+  },
+  {
+    key: "gov.quorumNumerator",
+    defaultValue: "1",
+    category: "governance",
+    description: "Quorum fraction numerator (e.g., 1 for 1/3)",
+  },
+  {
+    key: "gov.quorumDenominator",
+    defaultValue: "3",
+    category: "governance",
+    description: "Quorum fraction denominator (e.g., 3 for 1/3)",
+  },
+  {
+    key: "gov.quorumScope",
+    defaultValue: "permanent_temporary_lc",
+    category: "governance",
+    description: "Which bodies count toward quorum",
+  },
+  {
+    key: "gov.quorumRounding",
+    defaultValue: "ceil",
+    category: "governance",
+    description: "How to round quorum calculation (ceil/floor/round)",
+  },
+  {
+    key: "gov.amendmentThreshold",
+    defaultValue: "two_thirds",
+    category: "governance",
+    description: "Voting threshold for bylaw changes",
+  },
+  {
+    key: "gov.bcpDeadlineWeeks",
+    defaultValue: "3",
+    category: "governance",
+    description: "Minimum weeks before NGA for Bylaw Change Proposals",
+  },
+  {
+    key: "gov.sgaNoticePeriodDays",
+    defaultValue: "14",
+    category: "governance",
+    description: "Minimum notice period for Special General Assembly",
+  },
+  {
+    key: "gov.ngaCallForParticipationWeeks",
+    defaultValue: "8",
+    category: "governance",
+    description: "Weeks before NGA to issue call for participation",
+  },
+  {
+    key: "gov.nonSuspensibleClauses",
+    defaultValue: "[]",
+    category: "governance",
+    description: "JSON array of clause IDs that cannot be suspended",
+  },
+
+  // ── Finance Thresholds ─────────────────────────────────────────────
+  {
+    key: "finance.vpfThreshold",
+    defaultValue: "5000",
+    category: "finance",
+    description: "VPF approval threshold (PKR)",
+  },
+  {
+    key: "finance.presidentThreshold",
+    defaultValue: "15000",
+    category: "finance",
+    description: "President approval threshold (PKR)",
+  },
+  {
+    key: "finance.ebSupermajorityThreshold",
+    defaultValue: "15000",
+    category: "finance",
+    description: "Expenses above this require EB 2/3 majority (PKR)",
+  },
+  {
+    key: "finance.fiscalYearStart",
+    defaultValue: "10-01",
+    category: "finance",
+    description: "Fiscal year start (MM-DD)",
+  },
+
+  // ── Elections ──────────────────────────────────────────────────────
+  {
+    key: "election.votingMethod",
+    defaultValue: "secret_ballot",
+    category: "elections",
+    description: "Default voting method for elections",
+  },
+  {
+    key: "election.permanentLcPlenaryVotes",
+    defaultValue: "1",
+    category: "elections",
+    description: "Plenary votes per Permanent Local Council",
+  },
+  {
+    key: "election.permanentLcElectionVotes",
+    defaultValue: "10",
+    category: "elections",
+    description: "Max election votes per Permanent Local Council",
+  },
+  {
+    key: "election.temporaryLcPlenaryVotes",
+    defaultValue: "1",
+    category: "elections",
+    description: "Plenary votes per Temporary Local Council",
+  },
+  {
+    key: "election.temporaryLcElectionVotes",
+    defaultValue: "10",
+    category: "elections",
+    description: "Max election votes per Temporary Local Council",
+  },
+  {
+    key: "election.candidateLcPlenaryVotes",
+    defaultValue: "0",
+    category: "elections",
+    description: "Plenary votes for Candidate Local Councils",
+  },
+  {
+    key: "election.candidateLcElectionVotes",
+    defaultValue: "1",
+    category: "elections",
+    description: "Election votes per Candidate Local Council",
+  },
+  {
+    key: "election.coordinatorPlenaryVotes",
+    defaultValue: "0",
+    category: "elections",
+    description: "Plenary votes for Coordinator Institutes",
+  },
+  {
+    key: "election.coordinatorElectionVotes",
+    defaultValue: "1",
+    category: "elections",
+    description: "Election votes per Coordinator Institute",
+  },
+  {
+    key: "election.candidateDeadlineDaysBeforeNga",
+    defaultValue: "7",
+    category: "elections",
+    description: "Days before NGA for candidacy deadline",
+  },
+  {
+    key: "election.returningOfficerCount",
+    defaultValue: "3",
+    category: "elections",
+    description: "Number of returning officers for elections",
+  },
+
+  // ── Plenary ────────────────────────────────────────────────────────
+  {
+    key: "plenary.speakingTimeSeconds",
+    defaultValue: "120",
+    category: "plenary",
+    description: "Maximum time allowed per speaker (seconds)",
+  },
+  {
+    key: "plenary.pooWarningLimit",
+    defaultValue: "3",
+    category: "plenary",
+    description: "POO warnings before delegation restriction",
+  },
+  {
+    key: "plenary.poiWarningLimit",
+    defaultValue: "3",
+    category: "plenary",
+    description: "POI warnings before delegation restriction",
+  },
+  {
+    key: "plenary.defaultVotingMethod",
+    defaultValue: "simple_majority",
+    category: "plenary",
+    description: "Default majority type for plenary votes",
+  },
+  {
+    key: "plenary.allowProxyVoting",
+    defaultValue: "true",
+    category: "plenary",
+    description: "Whether delegations can assign proxies",
+  },
+  {
+    key: "plenary.maxProxiesPerDelegation",
+    defaultValue: "2",
+    category: "plenary",
+    description: "Maximum proxy assignments per delegation",
+  },
+  {
+    key: "plenary.proxyScope",
+    defaultValue: "bylaw_changes_only",
+    category: "plenary",
+    description: "What proxy votes can cover",
+  },
+
+  // ── Membership ─────────────────────────────────────────────────────
+  {
+    key: "member.eligibleDegrees",
+    defaultValue: '["MBBS","BDS","DPT","BSN","PharmD"]',
+    category: "membership",
+    description: "JSON array of eligible health science degrees",
+  },
+  {
+    key: "member.allowGraduates",
+    defaultValue: "true",
+    category: "membership",
+    description: "Whether recent graduates can join",
+  },
+  {
+    key: "member.graduateGracePeriodMonths",
+    defaultValue: "6",
+    category: "membership",
+    description: "Months after graduation a member can remain active",
+  },
+  {
+    key: "member.financialDebtThreshold",
+    defaultValue: "2000",
+    category: "membership",
+    description: "Max outstanding debt for voting eligibility (PKR)",
+  },
+  {
+    key: "member.terminationNoticeDays",
+    defaultValue: "14",
+    category: "membership",
+    description: "Days given to respond to show-cause notice",
+  },
+  {
+    key: "member.appealDeadlineDays",
+    defaultValue: "7",
+    category: "membership",
+    description: "Days to file appeal after termination decision",
+  },
+
+  // ── Notifications ──────────────────────────────────────────────────
+  {
+    key: "notif.ngaInvitationDaysBefore",
+    defaultValue: "30",
+    category: "notifications",
+    description: "Days before NGA to send invitations",
+  },
+  {
+    key: "notif.credentialDeadlineDaysBefore",
+    defaultValue: "7",
+    category: "notifications",
+    description: "Days before NGA for credential submission",
+  },
+  {
+    key: "notif.bcpReminderDays",
+    defaultValue: "14,7,3",
+    category: "notifications",
+    description: "Comma-separated days before deadline to send BCP reminders",
+  },
+
+  // ── Security ───────────────────────────────────────────────────────
+  {
+    key: "security.minPasswordLength",
+    defaultValue: "8",
+    category: "security",
+    description: "Minimum characters for user passwords",
+  },
+  {
+    key: "security.sessionTimeoutHours",
+    defaultValue: "24",
+    category: "security",
+    description: "Maximum session duration before re-authentication",
+  },
+  {
+    key: "security.maxLoginAttempts",
+    defaultValue: "5",
+    category: "security",
+    description: "Failed attempts before account lockout",
+  },
 ];
 
 /**

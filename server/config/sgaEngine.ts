@@ -36,6 +36,7 @@ import {
 import { getDb } from "../db";
 import { logAuditEvent } from "./auditService";
 import { evaluateQuorum, resolveEffectiveRule } from "./governanceRulesEngine";
+import { getCurrentGovernanceVersion } from "./termService";
 
 // ============================================================================
 // Types
@@ -107,7 +108,7 @@ export async function proposeSGA(
       mode: input.mode ?? "in_person",
       scheduledStart: input.scheduledStart,
       scheduledEnd: input.scheduledEnd,
-      governanceVersion: input.governanceVersion ?? "2025-26",
+      governanceVersion: input.governanceVersion ?? await getCurrentGovernanceVersion(),
       createdById: input.createdById,
     });
 

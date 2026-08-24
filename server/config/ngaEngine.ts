@@ -57,6 +57,7 @@ import {
 import { getDb } from "../db";
 import { logAuditEvent } from "./auditService";
 import { evaluateQuorum, resolveEffectiveRule, getParameter } from "./governanceRulesEngine";
+import { getCurrentGovernanceVersion } from "./termService";
 
 // ============================================================================
 // Types
@@ -146,7 +147,7 @@ export async function createNGA(
       venue: input.venue,
       city: input.city,
       participationFee: input.participationFee,
-      governanceVersion: input.governanceVersion ?? "2025-26",
+      governanceVersion: input.governanceVersion ?? await getCurrentGovernanceVersion(),
       quorumRequired,
       createdById: input.createdById,
     });

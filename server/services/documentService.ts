@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import type { MemberCardData } from "./memberAccountService";
 import { getBranding, getOrgName, getOrgFullName, getOrgShortName, getPresidentName, getSerialPrefix } from "../config/branding";
+import { getTermDisplayString } from "../config/termService";
 import { childLogger } from "../_core/logger";
 
 const log = childLogger("CardPdf");
@@ -571,7 +572,7 @@ export async function generatePremiumMembershipCardPdf(
     .fontSize(pt(4.2))
     .fillColor(C_GOLD_SOFT)
     .text(
-      `TERM 2025 – 26 · ${(card.status || "MEMBER").toUpperCase()}`,
+      `${await getTermDisplayString()} · ${(card.status || "MEMBER").toUpperCase()}`,
       px(110),
       px(18.5),
       {

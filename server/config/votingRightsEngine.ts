@@ -38,6 +38,7 @@ import {
   type InsertVotingRightsCalculation,
 } from "../../drizzle/schema.nga";
 import { logAuditEvent } from "./auditService";
+import { getCurrentGovernanceVersion } from "./termService";
 import { resolveEffectiveRule, getParameter } from "./governanceRulesEngine";
 
 // ============================================================================
@@ -236,7 +237,7 @@ export const votingRightsEngine = {
       eligibilityReasons,
       calculation,
       ruleSource,
-      governanceVersion: input.governanceVersion ?? "2025-26",
+      governanceVersion: input.governanceVersion ?? await getCurrentGovernanceVersion(),
     };
   },
 
@@ -262,7 +263,7 @@ export const votingRightsEngine = {
       .where(eq(ngaMeetings.id, meetingId))
       .limit(1);
 
-    const governanceVersion = meeting?.governanceVersion ?? "2025-26";
+    const governanceVersion = meeting?.governanceVersion ?? await getCurrentGovernanceVersion();
 
     // Get all delegations
     const delegations = await db
@@ -587,7 +588,7 @@ export const votingRightsEngine = {
       .where(eq(ngaMeetings.id, meetingId))
       .limit(1);
 
-    const governanceVersion = meeting?.governanceVersion ?? "2025-26";
+    const governanceVersion = meeting?.governanceVersion ?? await getCurrentGovernanceVersion();
     const now = new Date();
 
     // Get all delegations
