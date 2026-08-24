@@ -2831,6 +2831,12 @@ export const appRouter = router({
             input.overrides
           );
         }),
+
+      /** Configuration health check — detects missing, invalid, expired config. */
+      health: officialModuleProcedure("config").query(async () => {
+        const { getConfigurationHealth } = await import("./config/configHealthService");
+        return getConfigurationHealth();
+      }),
     }),
 
     // ── Activities Module (§61-70) ──────────────────────────────────────
