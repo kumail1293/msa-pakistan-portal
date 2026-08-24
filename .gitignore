@@ -123,3 +123,18 @@ screenshots/
 
 # Test artifacts
 test-signature.png
+test-pages.mjs
+test-screenshots.mjs
+test-screenshots.sh
+vitest.config.ts.timestamp-*
+
+# AI agent / tool files
+.agents/
+.claude/
+skills-lock.json
+
+# Stale lock backups
+pnpm-lock.yaml.*
+
+# Browser test scripts
+browser-test.mjs
