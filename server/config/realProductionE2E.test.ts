@@ -238,20 +238,20 @@ describe("E2E: LC Lifecycle", () => {
     "CI → Candidate → Temporary → Permanent progression",
     async () => {
       // CI → Candidate (SupCo approval required)
-      const ciTransitions = getLCTransitions("Coordinator Institute");
+      const ciTransitions = await getLCTransitions("Coordinator Institute");
       expect(ciTransitions).toHaveLength(1);
       expect(ciTransitions[0].to).toBe("Candidate LC");
       expect(ciTransitions[0].requiresSupCoApproval).toBe(true);
       expect(ciTransitions[0].requiresNgaApproval).toBe(false);
 
       // Candidate → Temporary (NGA + SupCo required)
-      const candTransitions = getLCTransitions("Candidate LC");
+      const candTransitions = await getLCTransitions("Candidate LC");
       expect(candTransitions).toHaveLength(1);
       expect(candTransitions[0].to).toBe("Temporary LC");
       expect(candTransitions[0].requiresNgaApproval).toBe(true);
 
       // Temporary → Permanent (NGA + SupCo required)
-      const tempTransitions = getLCTransitions("Temporary LC");
+      const tempTransitions = await getLCTransitions("Temporary LC");
       const permTransition = tempTransitions.find(
         (t) => t.to === "Permanent LC"
       );
@@ -264,14 +264,14 @@ describe("E2E: LC Lifecycle", () => {
     "suspension and reactivation path",
     async () => {
       // Temporary → Suspended
-      const tempTransitions = getLCTransitions("Temporary LC");
+      const tempTransitions = await getLCTransitions("Temporary LC");
       const suspTransition = tempTransitions.find(
         (t) => t.to === "Suspended"
       );
       expect(suspTransition).toBeDefined();
 
       // Suspended → Temporary (reactivation)
-      const suspTransitions = getLCTransitions("Suspended");
+      const suspTransitions = await getLCTransitions("Suspended");
       const reactivate = suspTransitions.find(
         (t) => t.to === "Temporary LC"
       );
@@ -280,8 +280,8 @@ describe("E2E: LC Lifecycle", () => {
     }
   );
 
-  it("Archived has no outgoing transitions", () => {
-    const transitions = getLCTransitions("Archived");
+  it("Archived has no outgoing transitions", async () => {
+    const transitions = await getLCTransitions("Archived");
     expect(transitions).toHaveLength(0);
   });
 });

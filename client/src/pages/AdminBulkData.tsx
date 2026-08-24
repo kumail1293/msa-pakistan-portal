@@ -66,20 +66,9 @@ const MEMBERS_DATA: Record<string, unknown>[] = [
   { id: 12, membershipId: "MSAP-2024012", name: "Maryam Javed", email: "maryam.j@edu.pk", phone: "+92 311 2345678", localCouncil: "AIMC LC", discipline: "MBBS", yearOfStudy: "Final Year", status: "Active", joinDate: "2025-01-20" },
 ];
 
-const LC_DATA: Record<string, unknown>[] = [
-  { id: 1, name: "MSA-Pakistan KEMU LC", shortCode: "KEMU-LC", city: "Lahore", region: "Punjab Central", type: "permanent", memberCount: 280, status: "Active", president: "Ahmed Khan" },
-  { id: 2, name: "MSA-Pakistan AKU LC", shortCode: "AKU-LC", city: "Karachi", region: "Sindh Urban", type: "permanent", memberCount: 195, status: "Active", president: "Fatima Malik" },
-  { id: 3, name: "MSA-Pakistan DUHS LC", shortCode: "DUHS-LC", city: "Karachi", region: "Sindh Urban", type: "permanent", memberCount: 320, status: "Active", president: "Hussein Rao" },
-  { id: 4, name: "MSA-Pakistan AIMC LC", shortCode: "AIMC-LC", city: "Lahore", region: "Punjab Central", type: "permanent", memberCount: 150, status: "Active", president: "Ayesha Qureshi" },
-  { id: 5, name: "MSA-Pakistan PMC LC", shortCode: "PMC-LC", city: "Faisalabad", region: "Punjab South", type: "permanent", memberCount: 175, status: "Active", president: "Omar Baig" },
-  { id: 6, name: "MSA-Pakistan NMU LC", shortCode: "NMU-LC", city: "Multan", region: "Punjab South", type: "permanent", memberCount: 140, status: "Active", president: "Sana Siddiqui" },
-  { id: 7, name: "MSA-Pakistan RMU LC", shortCode: "RMU-LC", city: "Rawalpindi", region: "Punjab North", type: "permanent", memberCount: 165, status: "Active", president: "Ali Chaudhry" },
-  { id: 8, name: "MSA-Pakistan SIMS LC", shortCode: "SIMS-LC", city: "Lahore", region: "Punjab Central", type: "permanent", memberCount: 130, status: "Active", president: "Noor Hussain" },
-  { id: 9, name: "MSA-Pakistan Punjab Region", shortCode: "PUNJAB-R", city: "Lahore", region: "Punjab", type: "regional", memberCount: 1200, status: "Active", president: "Bilal Butt" },
-  { id: 10, name: "MSA-Pakistan Sindh Region", shortCode: "SINDH-R", city: "Karachi", region: "Sindh", type: "regional", memberCount: 700, status: "Active", president: "Zainab Shah" },
-  { id: 11, name: "SC Health Policy", shortCode: "SC-HPA", city: "Islamabad", region: "National", type: "standing_committee", memberCount: 25, status: "Active", president: "Usman Cheema" },
-  { id: 12, name: "SC Medical Education", shortCode: "SC-ME", city: "Lahore", region: "National", type: "standing_committee", memberCount: 20, status: "Active", president: "Maryam Javed" },
-];
+// LC data is loaded from the database via trpc.lc.list (see useEffect below)
+// The hardcoded list has been removed — data now comes from localCouncils table.
+const LC_DATA: Record<string, unknown>[] = [];
 
 const ACTIVITIES_DATA: Record<string, unknown>[] = [
   { id: 1, title: "Community Health Screening", type: "health_camp", city: "Lahore", status: "active", participants: 45, startDate: "2026-03-15", budget: 50000 },
@@ -116,7 +105,7 @@ const ENTITY_CONFIGS: EntityConfig[] = [
       { key: "name", label: "Full Name", type: "text", editable: true, width: 160 },
       { key: "email", label: "Email", type: "email", editable: true, width: 180 },
       { key: "phone", label: "Phone", type: "phone", editable: true, width: 140 },
-      { key: "localCouncil", label: "Local Council", type: "select", editable: true, width: 140, options: ["KEMU LC", "AKU LC", "DUHS LC", "AIMC LC", "PMC LC", "NMU LC", "RMU LC", "SIMS LC"] },
+      { key: "localCouncil", label: "Local Council", type: "text", editable: true, width: 140 }, // Dynamic — values come from lc.list API
       { key: "discipline", label: "Discipline", type: "select", editable: true, width: 100, options: ["MBBS", "BDS", "BSc Nursing", "Pharm-D", "DPT"] },
       { key: "yearOfStudy", label: "Year", type: "select", editable: true, width: 100, options: ["1st Year", "2nd Year", "3rd Year", "4th Year", "Final Year", "Intern"] },
       { key: "status", label: "Status", type: "select", editable: true, width: 90, options: ["Active", "Pending", "Inactive", "Suspended"] },
@@ -199,11 +188,29 @@ export default function AdminBulkData() {
     { enabled: selectedEntity !== "members" }
   ) ?? { data: null };
 
+  // Fetch LC data from database (replaces hardcoded list)
+  const lcDataQuery = (trpc as any).admin?.lc?.list?.useQuery(
+    {},
+    { enabled: selectedEntity === "local_councils" }
+  );
+
   // Initialize data when entity changes or backend data arrives
   useState(() => {
     const backendData = spreadsheetData.data;
     if (backendData && Array.isArray(backendData) && backendData.length > 0) {
       setEditData(backendData);
+    } else if (selectedEntity === "local_councils" && lcDataQuery?.data && Array.isArray(lcDataQuery.data) && lcDataQuery.data.length > 0) {
+      setEditData(lcDataQuery.data.map((lc: any) => ({
+        id: lc.id,
+        name: lc.name,
+        shortCode: lc.shortCode,
+        city: lc.city ?? "",
+        region: "",
+        type: lc.status?.toLowerCase() ?? "permanent",
+        memberCount: 0,
+        status: lc.status ?? "Active",
+        president: "",
+      })));
     } else {
       setEditData(JSON.parse(JSON.stringify(entity.data)));
     }
@@ -213,6 +220,18 @@ export default function AdminBulkData() {
   useState(() => {
     if (spreadsheetData.data && Array.isArray(spreadsheetData.data) && spreadsheetData.data.length > 0) {
       setEditData(spreadsheetData.data);
+    } else if (selectedEntity === "local_councils" && lcDataQuery?.data && Array.isArray(lcDataQuery.data) && lcDataQuery.data.length > 0) {
+      setEditData(lcDataQuery.data.map((lc: any) => ({
+        id: lc.id,
+        name: lc.name,
+        shortCode: lc.shortCode,
+        city: lc.city ?? "",
+        region: "",
+        type: lc.status?.toLowerCase() ?? "permanent",
+        memberCount: 0,
+        status: lc.status ?? "Active",
+        president: "",
+      })));
     }
   });
 

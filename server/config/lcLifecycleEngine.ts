@@ -93,99 +93,207 @@ export interface LCComplianceCheck {
 }
 
 // ============================================================================
-// Valid Status Transitions
+// Config Keys for LC Lifecycle Thresholds
+// ============================================================================
+//
+// All thresholds below are resolved from configuration, not source code.
+// An administrator can change any of these without a code deploy.
+//
+// Config keys:
+//   lc.minMembersForCandidate       (default: 10)
+//   lc.activeMonthsForCandidate     (default: 3)
+//   lc.minMembersForTemporary       (default: 25)
+//   lc.minActivitiesForTemporary    (default: 1)
+//   lc.minMembersForPermanent       (default: 50)
+//   lc.minActivitiesForPermanent    (default: 3)
+//   lc.minMonthsAsTemporary         (default: 12)
+//   lc.minGovernanceScoreForPerm    (default: 70)
+//   lc.suspendComplianceThreshold   (default: 30)
+//   lc.suspendComplianceQuarters    (default: 2)
+//   lc.suspendFinancialMonths       (default: 6)
+//   lc.reactivationComplianceMin    (default: 50)
+//
+// Approval requirements are also configurable:
+//   lc.upgradeRequiresNga           (default: false for CI→Candidate, true for others)
+//   lc.upgradeRequiresSupCo         (default: true for all)
+//   lc.suspendRequiresNga           (default: false)
+//   lc.suspendRequiresSupCo         (default: true)
+//   lc.reactivationRequiresNga      (default: true)
+//   lc.reactivationRequiresSupCo    (default: true)
+//   lc.archiveRequiresNga           (default: true)
+//
+
+// ============================================================================
+// Config-Driven Transition Builder
 // ============================================================================
 
-const VALID_TRANSITIONS: LCStatusTransition[] = [
-  {
-    from: "Coordinator Institute",
-    to: "Candidate LC",
-    requiresNgaApproval: false,
-    requiresSupCoApproval: true,
-    conditions: [
-      "Minimum 10 registered members",
-      "Elected LC leadership",
-      "Active for at least 3 months",
-    ],
-    description:
-      "CI applies for Candidate LC status. Requires SupCo review and approval.",
-  },
-  {
-    from: "Candidate LC",
-    to: "Temporary LC",
-    requiresNgaApproval: true,
-    requiresSupCoApproval: true,
-    conditions: [
-      "Minimum 25 registered members",
-      "At least 1 activity conducted",
-      "Financial clearance for participation fee",
-      "NGA approval required",
-    ],
-    description:
-      "Candidate LC upgrades to Temporary LC. Requires NGA resolution.",
-  },
-  {
-    from: "Temporary LC",
-    to: "Permanent LC",
-    requiresNgaApproval: true,
-    requiresSupCoApproval: true,
-    conditions: [
-      "Minimum 50 registered members",
-      "At least 3 activities conducted",
-      "Continuous operation for 1+ year as Temporary LC",
-      "Full financial clearance",
-      "Governance compliance score > 70%",
-      "NGA approval required",
-    ],
-    description:
-      "Temporary LC upgrades to Permanent LC. Requires NGA resolution.",
-  },
-  {
-    from: "Temporary LC",
-    to: "Suspended",
-    requiresNgaApproval: false,
-    requiresSupCoApproval: true,
-    conditions: [
-      "Compliance score < 30% for 2 consecutive quarters",
-      "Financial delinquency > 6 months",
-    ],
-    description:
-      "LC suspended for non-compliance. Can be reactivated with remediation.",
-  },
-  {
-    from: "Permanent LC",
-    to: "Suspended",
-    requiresNgaApproval: false,
-    requiresSupCoApproval: true,
-    conditions: [
-      "Compliance score < 30% for 2 consecutive quarters",
-      "Financial delinquency > 6 months",
-      "Failure to participate in NGA without proxy",
-    ],
-    description:
-      "LC suspended for non-compliance. Can be reactivated with remediation.",
-  },
-  {
-    from: "Suspended",
-    to: "Temporary LC",
-    requiresNgaApproval: true,
-    requiresSupCoApproval: true,
-    conditions: [
-      "Remediation plan submitted and approved",
-      "Compliance score restored above 50%",
-      "Financial clearance obtained",
-    ],
-    description: "Suspended LC reactivated as Temporary LC after remediation.",
-  },
-  {
-    from: "Suspended",
-    to: "Archived",
-    requiresNgaApproval: true,
-    requiresSupCoApproval: false,
-    conditions: ["LC dissolved by NGA resolution"],
-    description: "LC permanently archived after dissolution.",
-  },
-];
+async function buildTransitions(): Promise<LCStatusTransition[]> {
+  // Resolve all config values once to avoid cache conflicts
+  const [
+    ciToCandidateNga,
+    ciToCandidateSupCo,
+    candidateToTempNga,
+    candidateToTempSupCo,
+    tempToPermNga,
+    tempToPermSupCo,
+    suspendNga,
+    suspendSupCo,
+    reactivateNga,
+    reactivateSupCo,
+    archiveNga,
+    minMembersCandidate,
+    activeMonthsCandidate,
+    minMembersTemp,
+    minActivitiesTemp,
+    minMembersPerm,
+    minActivitiesPerm,
+    minMonthsAsTemp,
+    minGovernanceScore,
+    suspendComplianceThreshold,
+    suspendComplianceQuarters,
+    suspendFinancialMonths,
+    reactivationComplianceMin,
+  ] = await Promise.all([
+    getConfig("lc.ciToCandidateRequiresNga", "false"),
+    getConfig("lc.ciToCandidateRequiresSupco", "true"),
+    getConfig("lc.candidateToTempRequiresNga", "true"),
+    getConfig("lc.candidateToTempRequiresSupco", "true"),
+    getConfig("lc.tempToPermRequiresNga", "true"),
+    getConfig("lc.tempToPermRequiresSupco", "true"),
+    getConfig("lc.suspendRequiresNga", "false"),
+    getConfig("lc.suspendRequiresSupco", "true"),
+    getConfig("lc.reactivationRequiresNga", "true"),
+    getConfig("lc.reactivationRequiresSupco", "true"),
+    getConfig("lc.archiveRequiresNga", "true"),
+    getConfigNumber("lc.minMembersForCandidate", 10),
+    getConfigNumber("lc.activeMonthsForCandidate", 3),
+    getConfigNumber("lc.minMembersForTemporary", 25),
+    getConfigNumber("lc.minActivitiesForTemporary", 1),
+    getConfigNumber("lc.minMembersForPermanent", 50),
+    getConfigNumber("lc.minActivitiesForPermanent", 3),
+    getConfigNumber("lc.minMonthsAsTemporary", 12),
+    getConfigNumber("lc.minGovernanceScoreForPerm", 70),
+    getConfigNumber("lc.suspendComplianceThreshold", 30),
+    getConfigNumber("lc.suspendComplianceQuarters", 2),
+    getConfigNumber("lc.suspendFinancialMonths", 6),
+    getConfigNumber("lc.reactivationComplianceMin", 50),
+  ]);
+
+  return [
+    {
+      from: "Coordinator Institute",
+      to: "Candidate LC",
+      requiresNgaApproval: ciToCandidateNga === "true",
+      requiresSupCoApproval: ciToCandidateSupCo === "true",
+      conditions: [
+        `Minimum ${minMembersCandidate} registered members`,
+        "Elected LC leadership",
+        `Active for at least ${activeMonthsCandidate} months`,
+      ],
+      description:
+        "CI applies for Candidate LC status. Requires SupCo review and approval.",
+    },
+    {
+      from: "Candidate LC",
+      to: "Temporary LC",
+      requiresNgaApproval: candidateToTempNga === "true",
+      requiresSupCoApproval: candidateToTempSupCo === "true",
+      conditions: [
+        `Minimum ${minMembersTemp} registered members`,
+        `At least ${minActivitiesTemp} activity conducted`,
+        "Financial clearance for participation fee",
+        "NGA approval required",
+      ],
+      description:
+        "Candidate LC upgrades to Temporary LC. Requires NGA resolution.",
+    },
+    {
+      from: "Temporary LC",
+      to: "Permanent LC",
+      requiresNgaApproval: tempToPermNga === "true",
+      requiresSupCoApproval: tempToPermSupCo === "true",
+      conditions: [
+        `Minimum ${minMembersPerm} registered members`,
+        `At least ${minActivitiesPerm} activities conducted`,
+        `Continuous operation for ${minMonthsAsTemp}+ months as Temporary LC`,
+        "Full financial clearance",
+        `Governance compliance score > ${minGovernanceScore}%`,
+        "NGA approval required",
+      ],
+      description:
+        "Temporary LC upgrades to Permanent LC. Requires NGA resolution.",
+    },
+    {
+      from: "Temporary LC",
+      to: "Suspended",
+      requiresNgaApproval: suspendNga === "true",
+      requiresSupCoApproval: suspendSupCo === "true",
+      conditions: [
+        `Compliance score < ${suspendComplianceThreshold}% for ${suspendComplianceQuarters} consecutive quarters`,
+        `Financial delinquency > ${suspendFinancialMonths} months`,
+      ],
+      description:
+        "LC suspended for non-compliance. Can be reactivated with remediation.",
+    },
+    {
+      from: "Permanent LC",
+      to: "Suspended",
+      requiresNgaApproval: suspendNga === "true",
+      requiresSupCoApproval: suspendSupCo === "true",
+      conditions: [
+        `Compliance score < ${suspendComplianceThreshold}% for ${suspendComplianceQuarters} consecutive quarters`,
+        `Financial delinquency > ${suspendFinancialMonths} months`,
+        "Failure to participate in NGA without proxy",
+      ],
+      description:
+        "LC suspended for non-compliance. Can be reactivated with remediation.",
+    },
+    {
+      from: "Suspended",
+      to: "Temporary LC",
+      requiresNgaApproval: reactivateNga === "true",
+      requiresSupCoApproval: reactivateSupCo === "true",
+      conditions: [
+        "Remediation plan submitted and approved",
+        `Compliance score restored above ${reactivationComplianceMin}%`,
+        "Financial clearance obtained",
+      ],
+      description: "Suspended LC reactivated as Temporary LC after remediation.",
+    },
+    {
+      from: "Suspended",
+      to: "Archived",
+      requiresNgaApproval: archiveNga === "true",
+      requiresSupCoApproval: false,
+      conditions: ["LC dissolved by NGA resolution"],
+      description: "LC permanently archived after dissolution.",
+    },
+  ];
+}
+
+// ============================================================================
+// Valid Status Transitions (cached, rebuilt when config changes)
+// ============================================================================
+
+let _cachedTransitions: LCStatusTransition[] | null = null;
+let _cacheTimestamp = 0;
+const TRANSITION_CACHE_TTL_MS = 60_000; // Rebuild from config every 60s
+
+async function getTransitions(): Promise<LCStatusTransition[]> {
+  const now = Date.now();
+  if (_cachedTransitions && now - _cacheTimestamp < TRANSITION_CACHE_TTL_MS) {
+    return _cachedTransitions;
+  }
+  _cachedTransitions = await buildTransitions();
+  _cacheTimestamp = now;
+  return _cachedTransitions;
+}
+
+/** Force a cache refresh (call after config changes). */
+export function invalidateTransitionCache(): void {
+  _cachedTransitions = null;
+  _cacheTimestamp = 0;
+}
 
 // ============================================================================
 // LC CRUD
@@ -326,7 +434,8 @@ export async function transitionLCStatus(
       return { success: false, errors: ["Local Council not found"] };
     }
 
-    const transition = VALID_TRANSITIONS.find(
+    const transitions = await getTransitions();
+    const transition = transitions.find(
       (t) => t.from === lc.status && t.to === newStatus
     );
 
@@ -334,7 +443,7 @@ export async function transitionLCStatus(
       return {
         success: false,
         errors: [
-          `Invalid transition: ${lc.status} → ${newStatus}. Valid: ${VALID_TRANSITIONS.filter((t) => t.from === lc.status).map((t) => t.to).join(", ") || "none"}`,
+          `Invalid transition: ${lc.status} → ${newStatus}. Valid: ${transitions.filter((t) => t.from === lc.status).map((t) => t.to).join(", ") || "none"}`,
         ],
       };
     }
@@ -387,12 +496,13 @@ export async function transitionLCStatus(
 }
 
 /**
- * Get valid next statuses for an LC.
+ * Get valid next statuses for an LC (config-driven).
  */
-export function getValidTransitions(
+export async function getValidTransitions(
   currentStatus: LCStatus
-): LCStatusTransition[] {
-  return VALID_TRANSITIONS.filter((t) => t.from === currentStatus);
+): Promise<LCStatusTransition[]> {
+  const transitions = await getTransitions();
+  return transitions.filter((t) => t.from === currentStatus);
 }
 
 // ============================================================================

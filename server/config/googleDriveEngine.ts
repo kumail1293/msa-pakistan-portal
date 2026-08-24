@@ -694,7 +694,7 @@ function generateReport() {
         { key: "name", label: "Full Name", type: "text", editable: true },
         { key: "email", label: "Email", type: "email", editable: true },
         { key: "phone", label: "Phone", type: "phone", editable: true },
-        { key: "localCouncil", label: "Local Council", type: "select", editable: true, options: ["KEMU LC", "AKU LC", "DUHS LC", "AIMC LC", "PMC LC", "NMU LC", "RMU LC", "SIMS LC"] },
+        { key: "localCouncil", label: "Local Council", type: "select", editable: true, optionsSource: "lc.list" }, // Dynamic — loaded from DB via lc.list API
         { key: "discipline", label: "Discipline", type: "select", editable: true, options: ["MBBS", "BDS", "BSc Nursing", "Pharm-D", "DPT"] },
         { key: "yearOfStudy", label: "Year of Study", type: "select", editable: true, options: ["1st Year", "2nd Year", "3rd Year", "4th Year", "Final Year", "Intern"] },
         { key: "status", label: "Status", type: "select", editable: true, options: ["Active", "Pending", "Inactive", "Suspended"] },

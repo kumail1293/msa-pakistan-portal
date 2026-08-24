@@ -656,6 +656,57 @@ export const appRouter = router({
     getLocalCouncils: publicProcedure.query(async () => {
       return await db.getLocalCouncils();
     }),
+
+    // ── Persisted Workflow Routes (replaces spreadsheet tracking) ──
+    submitApplication: protectedProcedure
+      .input(z.object({
+        email: z.string().email(),
+        fullName: z.string().min(1),
+        contactNumber: z.string().min(1),
+        age: z.number().min(18),
+        dateOfBirth: z.string(),
+        cnic: z.string().min(13),
+        gender: z.string(),
+        cityOfResidence: z.string(),
+        address: z.string(),
+        reasonForJoining: z.string(),
+        courseLevel: z.string(),
+        courseOfStudy: z.string(),
+        yearOfStudy: z.string(),
+        institute: z.string(),
+        collegeRollNumber: z.string(),
+        paymentAccountName: z.string(),
+        termsAccepted: z.boolean(),
+        undertakingAccepted: z.boolean(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { submitMembershipApplication } = await import("./config/membershipWorkflowService");
+        return submitMembershipApplication({ ...input, submittedBy: ctx.user?.id });
+      }),
+
+    approve: protectedProcedure
+      .input(z.object({ applicationId: z.number(), notes: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { approveMembership } = await import("./config/membershipWorkflowService");
+        return approveMembership(input.applicationId, ctx.user!.id, input.notes);
+      }),
+
+    reject: protectedProcedure
+      .input(z.object({ applicationId: z.number(), reason: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const { rejectMembership } = await import("./config/membershipWorkflowService");
+        return rejectMembership(input.applicationId, ctx.user!.id, input.reason);
+      }),
+
+    pending: protectedProcedure.query(async () => {
+      const { getPendingApplications } = await import("./config/membershipWorkflowService");
+      return getPendingApplications();
+    }),
+
+    stats: protectedProcedure.query(async () => {
+      const { getMembershipStats } = await import("./config/membershipWorkflowService");
+      return getMembershipStats();
+    }),
   }),
 
   // ============ CARD VERIFICATION (public, QR) ============
@@ -2160,6 +2211,43 @@ export const appRouter = router({
         const { nefNrfEngine } = await import("./config/nefNrfEngine");
         return nefNrfEngine.getStats();
       }),
+
+      // ── Persisted Workflow Routes (replaces spreadsheet tracking) ──
+      submitWorkflow: officialModuleProcedure("config")
+        .input(z.object({
+          title: z.string().min(3),
+          description: z.string().min(10),
+          type: z.enum(["nef", "nrf"]).default("nef"),
+          category: z.string().optional(),
+          budget: z.number().optional(),
+          venue: z.string().optional(),
+          city: z.string().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+          const { submitNEFActivity } = await import("./config/nefWorkflowService");
+          return submitNEFActivity({ ...input, createdBy: ctx.user?.id });
+        }),
+
+      reviewVpa: officialModuleProcedure("config")
+        .input(z.object({ activityId: z.number(), decision: z.enum(["approve", "reject", "needs_revision"]), notes: z.string().optional() }))
+        .mutation(async ({ ctx, input }) => {
+          const { reviewNEFatVPA } = await import("./config/nefWorkflowService");
+          return reviewNEFatVPA(input.activityId, ctx.user!.id, input.decision, input.notes);
+        }),
+
+      reviewVpf: officialModuleProcedure("config")
+        .input(z.object({ activityId: z.number(), decision: z.enum(["approve", "reject", "needs_revision"]), notes: z.string().optional() }))
+        .mutation(async ({ ctx, input }) => {
+          const { reviewNEFatVPF } = await import("./config/nefWorkflowService");
+          return reviewNEFatVPF(input.activityId, ctx.user!.id, input.decision, input.notes);
+        }),
+
+      approvePresident: officialModuleProcedure("config")
+        .input(z.object({ activityId: z.number(), notes: z.string().optional() }))
+        .mutation(async ({ ctx, input }) => {
+          const { approveNEFByPresident } = await import("./config/nefWorkflowService");
+          return approveNEFByPresident(input.activityId, ctx.user!.id, input.notes);
+        }),
     }),
 
     // ── Chapters (§21-27) ──────────────────────────────────────────────
@@ -2175,6 +2263,18 @@ export const appRouter = router({
       create: officialModuleProcedure("config").input(z.object({ name: z.string(), shortName: z.string().optional(), city: z.string().optional(), province: z.string().optional(), type: z.string().optional() })).mutation(async ({ ctx, input }) => {
         const { chaptersEngine } = await import("./config/chaptersEngine");
         return chaptersEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Local Councils (§21-27) ─────────────────────────────────────
+    lc: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), city: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { listLCs } = await import("./config/lcLifecycleEngine");
+        return listLCs(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { getLCStatistics } = await import("./config/lcLifecycleEngine");
+        return getLCStatistics();
       }),
     }),
 
@@ -2904,6 +3004,18 @@ export const appRouter = router({
       create: officialModuleProcedure("config").input(z.object({ name: z.string(), shortName: z.string().optional(), city: z.string().optional(), province: z.string().optional(), type: z.string().optional() })).mutation(async ({ ctx, input }) => {
         const { chaptersEngine } = await import("./config/chaptersEngine");
         return chaptersEngine.create({ ...input, createdBy: ctx.user?.id });
+      }),
+    }),
+
+    // ── Local Councils Module (§21-27) ────────────────────────────────
+    lc: router({
+      list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), city: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
+        const { listLCs } = await import("./config/lcLifecycleEngine");
+        return listLCs(input ?? {});
+      }),
+      stats: officialModuleProcedure("config").query(async () => {
+        const { getLCStatistics } = await import("./config/lcLifecycleEngine");
+        return getLCStatistics();
       }),
     }),
 
