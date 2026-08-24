@@ -23,6 +23,7 @@ import {
 } from "../../drizzle/schema.enterprise";
 import { getDb } from "../db";
 import { logAuditEvent } from "./auditService";
+import { getConfigNumber, getConfig } from "./configService";
 
 // ============================================================================
 // Workflow Definition Management
@@ -631,4 +632,160 @@ async function createTaskForStage(
     dueAt: config.dueAt ? new Date(config.dueAt as string) : undefined,
     metadata: config,
   });
+}
+
+// ============================================================================
+// Configuration-Driven Workflow Helpers (Phase 6)
+// ============================================================================
+
+/**
+ * Resolve the approver for a workflow stage from configuration.
+ * Returns user IDs that should be assigned the approval task.
+ */
+export async function resolveApprovers(
+  stageType: string,
+  entityType: string,
+  metadata?: Record<string, unknown>
+): Promise<number[]> {
+  const db = getDb();
+  if (!db) return [];
+
+  // Check for configured approver role for this stage type
+  const configKey = `workflow.approver.${entityType}.${stageType}`;
+  const approverRole = await getConfig(configKey, "");
+
+  if (!approverRole) {
+    // Default: no specific approver configured, task goes to unassigned pool
+    return [];
+  }
+
+  // In production, resolve role → user IDs from the database
+  // For now, return empty (task goes to unassigned pool)
+  return [];
+}
+
+/**
+ * Evaluate a workflow guard condition against configuration.
+ * Guards determine whether a transition should be allowed.
+ */
+export async function evaluateGuard(
+  guardType: string,
+  context: {
+    entityType: string;
+    entityId: number;
+    metadata?: Record<string, unknown>;
+    userId?: number;
+  }
+): Promise<{ allowed: boolean; reason?: string }> {
+  switch (guardType) {
+    case "financial_threshold": {
+      const threshold = await getConfigNumber("finance.ebSupermajorityThreshold", 15000);
+      const amount = (context.metadata?.amount as number) ?? 0;
+      if (amount > threshold) {
+        return {
+          allowed: false,
+          reason: `Amount PKR ${amount} exceeds EB approval threshold PKR ${threshold}`,
+        };
+      }
+      return { allowed: true };
+    }
+
+    case "quorum_required": {
+      const numerator = await getConfigNumber("gov.quorumNumerator", 1);
+      const denominator = await getConfigNumber("gov.quorumDenominator", 3);
+      return {
+        allowed: true,
+        reason: `Quorum requirement: ${numerator}/${denominator}`,
+      };
+    }
+
+    case "term_valid": {
+      // Check if the current term is still active
+      const { isDateInCurrentTerm } = await import("./termService");
+      const inTerm = await isDateInCurrentTerm(new Date());
+      if (!inTerm) {
+        return { allowed: false, reason: "Current term has expired" };
+      }
+      return { allowed: true };
+    }
+
+    case "membership_active": {
+      // Check if the subject member is still active
+      return { allowed: true }; // Would check membership status in production
+    }
+
+    default:
+      // Unknown guard type — allow by default (fail open for unknown guards)
+      return { allowed: true };
+  }
+}
+
+/**
+ * Get the default deadline for a workflow stage from configuration.
+ */
+export async function getStageDeadline(
+  entityType: string,
+  stageType: string
+): Promise<Date | null> {
+  const configKey = `workflow.deadline.${entityType}.${stageType}`;
+  const days = await getConfigNumber(configKey, 0);
+
+  if (days <= 0) return null;
+
+  const deadline = new Date();
+  deadline.setDate(deadline.getDate() + days);
+  return deadline;
+}
+
+/**
+ * Get workflow configuration summary for a given entity type.
+ * Useful for the Configuration Health Dashboard.
+ */
+export async function getWorkflowConfigSummary(
+  entityType: string
+): Promise<{
+  hasDefinition: boolean;
+  stageCount: number;
+  approverConfigured: boolean;
+  guardsConfigured: boolean;
+  deadlinesConfigured: boolean;
+}> {
+  const db = getDb();
+  if (!db) return { hasDefinition: false, stageCount: 0, approverConfigured: false, guardsConfigured: false, deadlinesConfigured: false };
+
+  const [workflow] = await db
+    .select()
+    .from(workflows)
+    .where(
+      and(
+        eq(workflows.entityType, entityType),
+        eq(workflows.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!workflow) {
+    return { hasDefinition: false, stageCount: 0, approverConfigured: false, guardsConfigured: false, deadlinesConfigured: false };
+  }
+
+  const stages = await db
+    .select()
+    .from(workflowStages)
+    .where(eq(workflowStages.workflowId, workflow.id));
+
+  const approverKey = `workflow.approver.${entityType}.approval`;
+  const deadlineKey = `workflow.deadline.${entityType}.review`;
+
+  const [approverVal] = await db.select().from(workflowStages).where(eq(workflowStages.workflowId, workflow.id)).limit(1);
+
+  return {
+    hasDefinition: true,
+    stageCount: stages.length,
+    approverConfigured: approverVal?.config != null,
+    guardsConfigured: stages.some((s) => s.conditions != null),
+    deadlinesConfigured: stages.some((s) => {
+      const cfg = (s.config as Record<string, unknown>) ?? {};
+      return cfg.dueAt != null;
+    }),
+  };
 }

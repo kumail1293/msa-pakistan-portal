@@ -8,6 +8,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { canAccessModule, isOfficialRole } from "../services/memberAccountService";
 import { checkRateLimit, rateLimitKey } from "./rateLimit";
+import { checkPermission } from "../config/rbac";
 import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
@@ -138,6 +139,63 @@ export function officialModuleProcedure(module: string) {
       }
 
       return next({ ctx });
+    }),
+  );
+}
+
+/**
+ * Capability-gated procedure. Checks RBAC permissions instead of hardcoded
+ * role names. This is the preferred way to authorize operations going forward.
+ *
+ * Usage:
+ *   capabilityProcedure("finance.approve").mutation(...)
+ *   capabilityProcedure("member.edit").mutation(...)
+ */
+export function capabilityProcedure(capability: string) {
+  return protectedProcedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+
+      // Super admins bypass all capability checks
+      if (ctx.user?.role === "superadmin") {
+        return next({ ctx });
+      }
+
+      const hasPermission = await checkPermission(ctx.user!.id, capability);
+      if (!hasPermission) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Missing required capability: ${capability}`,
+        });
+      }
+
+      return next({ ctx });
+    }),
+  );
+}
+
+/**
+ * ANY-of capability check. User must have at least one of the listed capabilities.
+ */
+export function anyCapabilityProcedure(...capabilities: string[]) {
+  return protectedProcedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+
+      if (ctx.user?.role === "superadmin") {
+        return next({ ctx });
+      }
+
+      for (const cap of capabilities) {
+        if (await checkPermission(ctx.user!.id, cap)) {
+          return next({ ctx });
+        }
+      }
+
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Missing required capabilities: ${capabilities.join(" or ")}`,
+      });
     }),
   );
 }
