@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import {
   officialModuleProcedure,
   publicProcedure,
+  adminProcedure,
   router,
   protectedProcedure,
   rateLimitedProcedure,
@@ -2270,7 +2271,10 @@ export const appRouter = router({
     lc: router({
       list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), city: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
         const { listLCs } = await import("./config/lcLifecycleEngine");
-        return listLCs(input ?? {});
+        return listLCs({
+          ...(input ?? {}),
+          status: input?.status as any,
+        });
       }),
       stats: officialModuleProcedure("config").query(async () => {
         const { getLCStatistics } = await import("./config/lcLifecycleEngine");
@@ -3011,7 +3015,10 @@ export const appRouter = router({
     lc: router({
       list: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), city: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
         const { listLCs } = await import("./config/lcLifecycleEngine");
-        return listLCs(input ?? {});
+        return listLCs({
+          ...(input ?? {}),
+          status: input?.status as any,
+        });
       }),
       stats: officialModuleProcedure("config").query(async () => {
         const { getLCStatistics } = await import("./config/lcLifecycleEngine");
@@ -3987,18 +3994,16 @@ export const appRouter = router({
   // ============ PUBLIC CONFIG (for branding theme) ============
   config: router({
     /**
-     * Public endpoint: get all configs by category (for branding theme).
-     * Only returns branding-related configs; other categories are not exposed.
+     * Public endpoint: get branding configs only (for theme customization).
+     * SECURITY: Only expose the "branding" category — never return all configs,
+     * as that would leak secrets, election keys, and internal thresholds.
      */
     getAll: publicProcedure
       .input(z.object({ category: z.string().optional() }).optional())
       .query(async ({ input }) => {
         const configs = await db.getAllConfiguration();
-        const category = input?.category;
-        if (category) {
-          return configs.filter((c) => c.category === category);
-        }
-        return configs;
+        const category = input?.category ?? "branding";
+        return configs.filter((c) => c.category === category);
       }),
   }),
 
@@ -4430,34 +4435,141 @@ export const appRouter = router({
         .query(async ({ input }) => {
           const { cmsSecurity } = await import("./config/cmsSecurityEngine");
           return cmsSecurity.getUser(input.id);
-        }),
-      permissions: publicProcedure
+        }),      permissions: adminProcedure
         .input(z.object({ userId: z.string() }))
         .query(async ({ input }) => {
           const { cmsSecurity } = await import("./config/cmsSecurityEngine");
           return cmsSecurity.getEffectivePermissions(input.userId);
         }),
     }),
-    // --- Audit ---
-    audit: publicProcedure
+    // --- Audit (admin only — exposes sensitive audit metadata) ---
+    audit: adminProcedure
       .input(z.object({
-        userId: z.string().optional(), entityType: z.string().optional(),
-        limit: z.number().optional(),
+        userId: z.string().optional(), entityType: z.string().optional(), limit: z.number().optional(),
       }).optional())
       .query(async ({ input }) => {
         const { cmsSecurity } = await import("./config/cmsSecurityEngine");
         return cmsSecurity.getAuditLog(input);
       }),
-    // --- Security Stats ---
-    securityStats: publicProcedure.query(async () => {
+    // --- Security Stats (admin only — exposes session counts, locked accounts, etc.) ---
+    securityStats: adminProcedure.query(async () => {
       const { cmsSecurity } = await import("./config/cmsSecurityEngine");
       return cmsSecurity.getStats();
     }),
-    // --- Security Headers ---
+    // --- Security Headers (public — these are meant to be visible to clients) ---
     securityHeaders: publicProcedure.query(async () => {
       const { cmsSecurity } = await import("./config/cmsSecurityEngine");
       return cmsSecurity.getSecurityHeaders();
     }),
+  }),
+
+  // ============ MODULE PERMISSIONS ============
+  modulePermissions: router({
+    /** Get all module definitions with access levels */
+    modules: publicProcedure.query(async () => {
+      const { MODULE_LIST, ACCESS_LEVEL_LABELS } = await import("./config/modulePermissionService");
+      return { modules: MODULE_LIST, accessLevels: ACCESS_LEVEL_LABELS };
+    }),
+
+    /** Get current user's access levels across all modules */
+    myAccess: protectedProcedure.query(async ({ ctx }) => {
+      const user = ctx.user!;
+      const { getAllModuleAccess, MODULE_LIST } = await import("./config/modulePermissionService");
+      const access = getAllModuleAccess(user.id, user.role, user.moduleAccess ?? null);
+      return {
+        userId: user.id,
+        role: user.role,
+        moduleAccess: user.moduleAccess,
+        access,
+        modules: MODULE_LIST,
+      };
+    }),
+
+    /** Get a user's permissions (superadmin only) */
+    getUserPermissions: superAdminProcedure
+      .input(z.object({ userId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getUserModulePermissions, getAllModuleAccess } = await import("./config/modulePermissionService");
+        const perms = getUserModulePermissions(input.userId);
+        return { permissions: perms };
+      }),
+
+    /** Set a user's access level for a module (superadmin only) */
+    setAccess: superAdminProcedure
+      .input(z.object({
+        userId: z.number().int().positive(),
+        moduleId: z.string().min(1).max(50),
+        accessLevel: z.enum(["view", "comment", "edit"]),
+        notes: z.string().max(500).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { setModuleAccess } = await import("./config/modulePermissionService");
+        const result = setModuleAccess(
+          input.userId,
+          input.moduleId,
+          input.accessLevel,
+          ctx.user!.id,
+          input.notes
+        );
+        return { ok: true, permission: result };
+      }),
+
+    /** Bulk set permissions for a user (superadmin only) */
+    setBulkAccess: superAdminProcedure
+      .input(z.object({
+        userId: z.number().int().positive(),
+        permissions: z.array(z.object({
+          module: z.string().min(1).max(50),
+          accessLevel: z.enum(["view", "comment", "edit"]),
+        })),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { setBulkModuleAccess } = await import("./config/modulePermissionService");
+        const results = setBulkModuleAccess(
+          input.userId,
+          input.permissions,
+          ctx.user!.id
+        );
+        return { ok: true, count: results.length };
+      }),
+
+    /** Remove a user's permission for a module (reverts to default) */
+    removeAccess: superAdminProcedure
+      .input(z.object({
+        userId: z.number().int().positive(),
+        moduleId: z.string().min(1).max(50),
+      }))
+      .mutation(async ({ input }) => {
+        const { removeModuleAccess } = await import("./config/modulePermissionService");
+        const removed = removeModuleAccess(input.userId, input.moduleId);
+        return { ok: true, removed };
+      }),
+
+    /** Get permissions for a specific module (which users have what access) */
+    getModulePermissions: superAdminProcedure
+      .input(z.object({ moduleId: z.string().min(1).max(50) }))
+      .query(async ({ input }) => {
+        const { getModulePermissions } = await import("./config/modulePermissionService");
+        return { permissions: getModulePermissions(input.moduleId) };
+      }),
+
+    /** Get summary of all permissions */
+    getSummary: superAdminProcedure.query(async () => {
+      const { getPermissionSummary, getDefaultAccess } = await import("./config/modulePermissionService");
+      return {
+        summary: getPermissionSummary(),
+        defaultAccess: getDefaultAccess(),
+      };
+    }),
+
+    /** Set default access level (superadmin only) */
+    setDefaultAccess: superAdminProcedure
+      .input(z.object({ level: z.enum(["view", "comment", "edit"]) }))
+      .mutation(async ({ input }) => {
+        const { setDefaultAccess } = await import("./config/modulePermissionService");
+        setDefaultAccess(input.level);
+        return { ok: true, defaultAccess: input.level };
+      }),
   }),
 });
 

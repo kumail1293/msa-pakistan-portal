@@ -28,6 +28,7 @@ import OfficialLogin from "./pages/OfficialLogin";
 import OfficialHome from "./pages/OfficialHome";
 import OfficialsManagement from "./pages/OfficialsManagement";
 import AdminGovernanceConfig from "./pages/AdminGovernanceConfig";
+import AdminModulePermissions from "./pages/AdminModulePermissions";
 import AdminGovernanceDashboard from "./pages/AdminGovernanceDashboard";
 import GovernanceTransparency from "./pages/GovernanceTransparency";
 // PublicLanding moved to WordPress public website (msapakistan.org)
@@ -239,6 +240,11 @@ function Router() {
       <Route path={"/admin/config"}>
         <OfficialLayout>
           <AdminConfig />
+        </OfficialLayout>
+      </Route>
+      <Route path={"/admin/module-permissions"}>
+        <OfficialLayout>
+          <AdminModulePermissions />
         </OfficialLayout>
       </Route>
       <Route path={"/admin/feature-flags"}>
