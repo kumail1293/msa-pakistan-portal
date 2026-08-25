@@ -1,4 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useModuleAccess } from "@/hooks/useModuleAccess";
+import { ModuleAccessBadge } from "@/components/ModuleAccessBadge";
 import {
   canAccessModule,
   isOfficialRole,
@@ -184,6 +186,7 @@ export default function OfficialLayout({
   children: React.ReactNode;
 }) {
   const { user, loading, logout } = useAuth();
+  const moduleAccess = useModuleAccess();
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
@@ -370,6 +373,7 @@ export default function OfficialLayout({
               toggleGroup={toggleGroup}
               onNavigate={handleNavigate}
               collapsed={false}
+              moduleAccess={moduleAccess}
             />
           </div>
         )}
@@ -395,18 +399,22 @@ export default function OfficialLayout({
                   if (hasActive || isExpanded) {
                     return group.items.map((item) => {
                       const isActive = activePath === item.path;
+                      const badgeLevel = item.module ? moduleAccess.getAccess(item.module) : null;
                       return (
                         <button
                           key={item.path}
                           onClick={() => handleNavigate(item.path)}
-                          title={item.label}
-                          className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+                          title={`${item.label}${badgeLevel && user?.role !== "superadmin" ? ` (${badgeLevel})` : ""}`}
+                          className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
                             isActive
                               ? "bg-[#E7F4F0] text-[#106E5B]"
                               : "text-[#5D7086] hover:bg-[#F0F5F3] hover:text-[#1B355E]"
                           }`}
                         >
                           <item.icon className="h-4.5 w-4.5" />
+                          {badgeLevel && user?.role !== "superadmin" && (
+                            <ModuleAccessBadge level={badgeLevel} compact className="absolute -bottom-0.5 -right-0.5" />
+                          )}
                         </button>
                       );
                     });
@@ -439,6 +447,7 @@ export default function OfficialLayout({
                       <div className="ml-1 space-y-0.5 border-l-2 border-[#E7F4F0] pl-3 py-1">
                         {group.items.map((item) => {
                           const isActive = activePath === item.path;
+                          const badgeLevel = item.module ? moduleAccess.getAccess(item.module) : null;
                           return (
                             <button
                               key={item.path}
@@ -454,7 +463,10 @@ export default function OfficialLayout({
                                   isActive ? "text-[#106E5B]" : ""
                                 }`}
                               />
-                              <span className="truncate">{item.label}</span>
+                              <span className="truncate flex-1 text-left">{item.label}</span>
+                              {badgeLevel && user?.role !== "superadmin" && (
+                                <ModuleAccessBadge level={badgeLevel} compact className="ml-auto shrink-0" />
+                              )}
                             </button>
                           );
                         })}
@@ -493,6 +505,7 @@ function SidebarNav({
   toggleGroup,
   onNavigate,
   collapsed,
+  moduleAccess,
 }: {
   groups: NavGroup[];
   activePath: string;
@@ -500,7 +513,9 @@ function SidebarNav({
   toggleGroup: (label: string) => void;
   onNavigate: (path: string) => void;
   collapsed: boolean;
+  moduleAccess: ReturnType<typeof useModuleAccess>;
 }) {
+  const { user } = useAuth();
   return (
     <nav className="space-y-0.5">
       {groups.map((group) => {
@@ -532,6 +547,7 @@ function SidebarNav({
               <div className="ml-1 space-y-0.5 border-l-2 border-[#E7F4F0] pl-3 py-1">
                 {group.items.map((item) => {
                   const isActive = activePath === item.path;
+                  const badgeLevel = item.module ? moduleAccess.getAccess(item.module) : null;
                   return (
                     <button
                       key={item.path}
@@ -547,7 +563,10 @@ function SidebarNav({
                           isActive ? "text-[#106E5B]" : ""
                         }`}
                       />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate flex-1 text-left">{item.label}</span>
+                      {badgeLevel && user?.role !== "superadmin" && (
+                        <ModuleAccessBadge level={badgeLevel} compact className="ml-auto shrink-0" />
+                      )}
                     </button>
                   );
                 })}

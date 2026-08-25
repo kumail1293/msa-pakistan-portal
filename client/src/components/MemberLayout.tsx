@@ -1,4 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useModuleAccess } from "@/hooks/useModuleAccess";
+import { ModuleAccessBadge } from "@/components/ModuleAccessBadge";
 import { isOfficialRole } from "@/_core/access";
 import { MSAPLogo } from "@/components/MSAPLogo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -50,26 +52,26 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: FolderOpen, label: "Activities", path: "/activities" },
-  { icon: Calendar, label: "Events", path: "/events" },
-  { icon: Vote, label: "Elections", path: "/elections" },
-  { icon: Scale, label: "Plenary", path: "/plenary" },
-  { icon: Coins, label: "NEF/NRF", path: "/nef-nrf" },
-  { icon: DollarSign, label: "Finance", path: "/finance" },
-  { icon: FileText, label: "Documents", path: "/documents" },
-  { icon: Megaphone, label: "Updates", path: "/communications" },
-  { icon: Building, label: "Chapters", path: "/chapters" },
-  { icon: FolderKanban, label: "Projects", path: "/projects" },
-  { icon: GraduationCap, label: "Training", path: "/training" },
-  { icon: Calendar, label: "Meetings", path: "/meetings" },
-  { icon: Flag, label: "NGA Portal", path: "/nga" },
-  { icon: Vote, label: "Voting", path: "/voting" },
-  { icon: Briefcase, label: "Opportunities", path: "/opportunities" },
-  { icon: BookOpen, label: "CV Maker", path: "/cv-maker" },
-  { icon: Users, label: "Directory", path: "/directory" },
-  { icon: IdCard, label: "Membership Card", path: "/membership-card" },
-  { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", module: null as string | null },
+  { icon: FolderOpen, label: "Activities", path: "/activities", module: "activities" },
+  { icon: Calendar, label: "Events", path: "/events", module: "events" },
+  { icon: Vote, label: "Elections", path: "/elections", module: "elections" },
+  { icon: Scale, label: "Plenary", path: "/plenary", module: "governance" },
+  { icon: Coins, label: "NEF/NRF", path: "/nef-nrf", module: "nef" },
+  { icon: DollarSign, label: "Finance", path: "/finance", module: "finance" },
+  { icon: FileText, label: "Documents", path: "/documents", module: "documents" },
+  { icon: Megaphone, label: "Updates", path: "/communications", module: "communications" },
+  { icon: Building, label: "Chapters", path: "/chapters", module: "chapters" },
+  { icon: FolderKanban, label: "Projects", path: "/projects", module: "projects" },
+  { icon: GraduationCap, label: "Training", path: "/training", module: "training" },
+  { icon: Calendar, label: "Meetings", path: "/meetings", module: "meetings" },
+  { icon: Flag, label: "NGA Portal", path: "/nga", module: "governance" },
+  { icon: Vote, label: "Voting", path: "/voting", module: "governance" },
+  { icon: Briefcase, label: "Opportunities", path: "/opportunities", module: null },
+  { icon: BookOpen, label: "CV Maker", path: "/cv-maker", module: null },
+  { icon: Users, label: "Directory", path: "/directory", module: "members" },
+  { icon: IdCard, label: "Membership Card", path: "/membership-card", module: null },
+  { icon: Settings, label: "Settings", path: "/settings", module: null },
 ];
 
 
@@ -147,6 +149,7 @@ type MemberLayoutContentProps = {
 
 function MemberLayoutContent({ children, setSidebarWidth }: MemberLayoutContentProps) {
   const { user, logout } = useAuth();
+  const moduleAccess = useModuleAccess();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar, setOpenMobile } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -233,7 +236,10 @@ function MemberLayoutContent({ children, setSidebarWidth }: MemberLayoutContentP
                       <item.icon
                         className={`h-4 w-4 ${isActive ? "text-[#106E5B]" : "text-[#5D7086]"}`}
                       />
-                      <span>{item.label}</span>
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {item.module && (
+                        <ModuleAccessBadge level={moduleAccess.getAccess(item.module)} compact className="ml-auto shrink-0" />
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
