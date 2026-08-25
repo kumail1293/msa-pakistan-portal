@@ -8,6 +8,7 @@ import {
   protectedProcedure,
   rateLimitedProcedure,
   superAdminProcedure,
+  moduleEditProcedure,
 } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -808,7 +809,7 @@ export const appRouter = router({
       );
     }),
 
-    submitVote: protectedProcedure
+    submitVote: moduleEditProcedure("governance")
       .input(
         z.object({
           sessionId: z.number(),
@@ -1067,7 +1068,7 @@ export const appRouter = router({
       const { activitiesEngine } = await import("./config/activitiesEngine");
       return activitiesEngine.get(input.activityId);
     }),
-    register: protectedProcedure.input(z.object({ activityId: z.number() })).mutation(async ({ ctx, input }) => {
+    register: moduleEditProcedure("activities").input(z.object({ activityId: z.number() })).mutation(async ({ ctx, input }) => {
       const { activitiesEngine } = await import("./config/activitiesEngine");
       return activitiesEngine.registerParticipant(input.activityId, ctx.user!.id);
     }),
@@ -1086,7 +1087,7 @@ export const appRouter = router({
       const { eventsEngine } = await import("./config/eventsEngine");
       return eventsEngine.get(input.eventId);
     }),
-    register: protectedProcedure.input(z.object({ eventId: z.number() })).mutation(async ({ ctx, input }) => {
+    register: moduleEditProcedure("events").input(z.object({ eventId: z.number() })).mutation(async ({ ctx, input }) => {
       const { eventsEngine } = await import("./config/eventsEngine");
       return eventsEngine.registerParticipant(input.eventId, ctx.user!.id);
     }),
@@ -1105,7 +1106,7 @@ export const appRouter = router({
       const { getElection } = await import("./config/electionsEngine");
       return getElection(input.electionId);
     }),
-    castBallot: protectedProcedure.input(z.object({ electionId: z.number(), ballotData: z.any() })).mutation(async ({ ctx, input }) => {
+    castBallot: moduleEditProcedure("elections").input(z.object({ electionId: z.number(), ballotData: z.any() })).mutation(async ({ ctx, input }) => {
       const { castBallot } = await import("./config/electionsEngine");
       return castBallot({ electionId: input.electionId, voterId: ctx.user!.id, ballotData: input.ballotData });
     }),
@@ -1124,7 +1125,7 @@ export const appRouter = router({
       const { financeEngine } = await import("./config/financeEngine");
       return financeEngine.listExpenses({ memberId: ctx.user!.id });
     }),
-    submitExpense: protectedProcedure.input(z.object({ title: z.string(), amount: z.number(), category: z.string().optional(), description: z.string().optional(), receiptUrl: z.string().optional() })).mutation(async ({ ctx, input }) => {
+    submitExpense: moduleEditProcedure("finance").input(z.object({ title: z.string(), amount: z.number(), category: z.string().optional(), description: z.string().optional(), receiptUrl: z.string().optional() })).mutation(async ({ ctx, input }) => {
       const { financeEngine } = await import("./config/financeEngine");
       return financeEngine.submitExpense({ ...input, totalAmount: input.amount, userId: ctx.user!.id });
     }),
@@ -1170,7 +1171,7 @@ export const appRouter = router({
       const { nefNrfEngine } = await import("./config/nefNrfEngine");
       return nefNrfEngine.getNefSubmission(input.activityId);
     }),
-    submitNef: protectedProcedure.input(z.object({ activityId: z.number().optional(), title: z.string(), description: z.string(), activityLevel: z.enum(["local", "national", "regional", "international"]), standingCommittee: z.string().optional(), coordinators: z.array(z.number()).optional(), startDate: z.date().optional(), endDate: z.date().optional(), venue: z.string().optional(), city: z.string().optional(), mode: z.enum(["in_person", "online", "hybrid"]).optional(), maxParticipants: z.number().optional(), budget: z.number().optional() })).mutation(async ({ ctx, input }) => {
+    submitNef: moduleEditProcedure("nef").input(z.object({ activityId: z.number().optional(), title: z.string(), description: z.string(), activityLevel: z.enum(["local", "national", "regional", "international"]), standingCommittee: z.string().optional(), coordinators: z.array(z.number()).optional(), startDate: z.date().optional(), endDate: z.date().optional(), venue: z.string().optional(), city: z.string().optional(), mode: z.enum(["in_person", "online", "hybrid"]).optional(), maxParticipants: z.number().optional(), budget: z.number().optional() })).mutation(async ({ ctx, input }) => {
       const { nefNrfEngine } = await import("./config/nefNrfEngine");
       return nefNrfEngine.submitNef({ ...input, submittedById: ctx.user!.id });
     }),
@@ -1179,7 +1180,7 @@ export const appRouter = router({
       return nefNrfEngine.getMyNefSubmissions(ctx.user!.id);
     }),
     // ── NRF (National Report Form) — member routes §16.11-16.12 ──
-    submitNrf: protectedProcedure.input(z.object({ activityId: z.number(), content: z.object({ summary: z.string(), participants: z.number().optional(), impact: z.string().optional(), photos: z.array(z.string()).optional(), feedback: z.string().optional(), outcomes: z.string().optional(), budgetActual: z.number().optional(), challenges: z.string().optional(), recommendations: z.string().optional() }) })).mutation(async ({ ctx, input }) => {
+    submitNrf: moduleEditProcedure("nef").input(z.object({ activityId: z.number(), content: z.object({ summary: z.string(), participants: z.number().optional(), impact: z.string().optional(), photos: z.array(z.string()).optional(), feedback: z.string().optional(), outcomes: z.string().optional(), budgetActual: z.number().optional(), challenges: z.string().optional(), recommendations: z.string().optional() }) })).mutation(async ({ ctx, input }) => {
       const { nefNrfEngine } = await import("./config/nefNrfEngine");
       return nefNrfEngine.submitNrf({ ...input, submittedById: ctx.user!.id });
     }),
@@ -1281,7 +1282,7 @@ export const appRouter = router({
       const { getFormWithFields } = await import("./config/formsEngine");
       return getFormWithFields(input.formId);
     }),
-    submit: protectedProcedure.input(z.object({ formId: z.number(), data: z.any() })).mutation(async ({ ctx, input }) => {
+    submit: moduleEditProcedure("governance").input(z.object({ formId: z.number(), data: z.any() })).mutation(async ({ ctx, input }) => {
       const { submitForm } = await import("./config/formsEngine");
       return submitForm(input.formId, input.data, ctx.user!.id);
     }),

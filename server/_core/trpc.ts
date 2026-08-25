@@ -9,6 +9,7 @@ import superjson from "superjson";
 import { canAccessModule, isOfficialRole } from "../services/memberAccountService";
 import { checkRateLimit, rateLimitKey } from "./rateLimit";
 import { checkPermission } from "../config/rbac";
+import { hasAccess, type ModuleAccessLevel } from "../config/modulePermissionService";
 import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
@@ -124,6 +125,72 @@ export const superAdminProcedure = t.procedure.use(
 );
 
 /**
+ * Module-guarded procedure.  Checks the per-user module permission store
+ * to determine whether the caller has at least `requiredLevel` access for
+ * the given module.
+ *
+ * Superadmins always pass.
+ * Officials with an explicit module grant in `officialModuleAccess` are
+ * treated as having "edit" access for that module.
+ * Everyone else is resolved through the modulePermissionService store.
+ *
+ * Usage:
+ *   moduleGuardedProcedure("activities", "edit").mutation(…)
+ *   moduleGuardedProcedure("finance",   "comment").query(…)
+ */
+export function moduleGuardedProcedure(
+  module: string,
+  requiredLevel: ModuleAccessLevel = "edit",
+) {
+  return protectedProcedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+
+      // Superadmins bypass module-level permissions entirely
+      if (ctx.user?.role === "superadmin") {
+        return next({ ctx });
+      }
+
+      const user = ctx.user!;
+      const moduleAccessList = (user as any).officialModuleAccess as string[] | null ?? null;
+
+      const allowed = hasAccess(
+        user.id,
+        user.role,
+        module,
+        requiredLevel,
+        moduleAccessList,
+      );
+
+      if (!allowed) {
+        const levelLabel =
+          requiredLevel === "edit"
+            ? "edit"
+            : requiredLevel === "comment"
+              ? "comment"
+              : "view";
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `You need ${levelLabel} access for the ${module} module.`,
+        });
+      }
+
+      return next({ ctx });
+    }),
+  );
+}
+
+/** Convenience: module guard requiring "edit" access (the common case). */
+export function moduleEditProcedure(module: string) {
+  return moduleGuardedProcedure(module, "edit");
+}
+
+/** Convenience: module guard requiring at least "comment" access. */
+export function moduleCommentProcedure(module: string) {
+  return moduleGuardedProcedure(module, "comment");
+}
+
+/**
  * Official-procedure gated on one module grant. Admins inherit every official
  * module; super admins inherit everything; officials only pass when the super
  * admin opened the module for them. The "officials" module itself is guarded
@@ -134,7 +201,25 @@ export function officialModuleProcedure(module: string) {
     t.middleware(async opts => {
       const { ctx, next } = opts;
 
-      if (!canAccessModule(ctx.user, module)) {
+      // Superadmins always pass
+      if (ctx.user?.role === "superadmin") {
+        return next({ ctx });
+      }
+
+      // Check legacy officialModuleAccess list
+      const legacyAccess = canAccessModule(ctx.user, module);
+
+      // Check new per-user module permission store
+      const moduleAccessList = (ctx.user as any).officialModuleAccess as string[] | null ?? null;
+      const newAccess = hasAccess(
+        ctx.user!.id,
+        ctx.user!.role,
+        module,
+        "edit",
+        moduleAccessList,
+      );
+
+      if (!legacyAccess && !newAccess) {
         throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
       }
 
