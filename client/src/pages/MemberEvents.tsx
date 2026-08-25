@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { CommentSection } from "@/components/CommentSection";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -161,6 +162,9 @@ export default function MemberEvents() {
                                 PKR {event.fee.toLocaleString()}
                               </div>
                             )}
+                          </div>
+                          <div className="mt-2">
+                            <CommentSection entityType="event" entityId={event.id} module="events" compact />
                           </div>
                           <Button
                             onClick={() => register.mutate({ eventId: event.id })}

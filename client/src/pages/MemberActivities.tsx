@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { CommentSection } from "@/components/CommentSection";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -197,6 +198,9 @@ export default function MemberActivities() {
                           {activity.currentParticipants ?? 0}/{activity.maxParticipants}
                         </div>
                       )}
+                    </div>
+                    <div className="mt-2">
+                      <CommentSection entityType="activity" entityId={activity.id} module="activities" compact />
                     </div>
                     <Button
                       onClick={() => register.mutate({ activityId: activity.id })}

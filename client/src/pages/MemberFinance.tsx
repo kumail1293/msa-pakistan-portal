@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { CommentSection } from "@/components/CommentSection";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -312,6 +313,10 @@ export default function MemberFinance() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <div className="mt-6">
+          <CommentSection entityType="finance" entityId={1} module="finance" />
+        </div>
       </div>
     </div>
   );

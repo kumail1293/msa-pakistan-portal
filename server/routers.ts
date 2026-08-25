@@ -4572,6 +4572,161 @@ export const appRouter = router({
         return { ok: true, defaultAccess: input.level };
       }),
   }),
+
+  // ============ COMMENTS ============
+  comments: router({
+    /**
+     * List comments for an entity. Requires at least "view" access on the
+     * entity's module.
+     */
+    list: protectedProcedure
+      .input(
+        z.object({
+          entityType: z.string().min(1).max(50),
+          entityId: z.number().int().positive(),
+          limit: z.number().int().min(1).max(100).default(50),
+          offset: z.number().int().min(0).default(0),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        // Resolve the module from entity type
+        const { getModuleForEntityType } = await import("./config/commentService");
+        const moduleId = getModuleForEntityType(input.entityType);
+
+        // Check view access
+        const { hasAccess } = await import("./config/modulePermissionService");
+        const moduleAccessList = (ctx.user as any).officialModuleAccess as string[] | null ?? null;
+        if (!hasAccess(ctx.user!.id, ctx.user!.role, moduleId, "view", moduleAccessList)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: `You need view access for the ${moduleId} module.` });
+        }
+
+        const { listComments } = await import("./config/commentService");
+        return listComments(input);
+      }),
+
+    /**
+     * Get comment counts for multiple entities. Requires "view" access.
+     */
+    counts: protectedProcedure
+      .input(
+        z.object({
+          entityType: z.string().min(1).max(50),
+          entityIds: z.array(z.number().int().positive()).max(100),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const { getModuleForEntityType } = await import("./config/commentService");
+        const moduleId = getModuleForEntityType(input.entityType);
+
+        const { hasAccess } = await import("./config/modulePermissionService");
+        const moduleAccessList = (ctx.user as any).officialModuleAccess as string[] | null ?? null;
+        if (!hasAccess(ctx.user!.id, ctx.user!.role, moduleId, "view", moduleAccessList)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: `You need view access for the ${moduleId} module.` });
+        }
+
+        const { getCommentCounts } = await import("./config/commentService");
+        return getCommentCounts(input.entityType, input.entityIds);
+      }),
+
+    /**
+     * Create a comment. Requires "comment" access on the entity's module.
+     */
+    create: protectedProcedure
+      .input(
+        z.object({
+          entityType: z.string().min(1).max(50),
+          entityId: z.number().int().positive(),
+          content: z.string().min(1).max(5000),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { getModuleForEntityType } = await import("./config/commentService");
+        const moduleId = getModuleForEntityType(input.entityType);
+
+        // Check comment access
+        const { hasAccess } = await import("./config/modulePermissionService");
+        const moduleAccessList = (ctx.user as any).officialModuleAccess as string[] | null ?? null;
+        if (!hasAccess(ctx.user!.id, ctx.user!.role, moduleId, "comment", moduleAccessList)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: `You need comment access for the ${moduleId} module.` });
+        }
+
+        const { createComment } = await import("./config/commentService");
+        const comment = createComment({
+          entityType: input.entityType,
+          entityId: input.entityId,
+          userId: ctx.user!.id,
+          userName: ctx.user!.name || "Unknown",
+          userRole: ctx.user!.role,
+          content: input.content,
+        });
+
+        void logAuditForUser(ctx.user, "comment.created", {
+          category: "engagement",
+          entityType: input.entityType,
+          entityId: input.entityId,
+          after: { commentId: comment.id, content: input.content.substring(0, 100) },
+        });
+
+        return comment;
+      }),
+
+    /**
+     * Edit a comment. Only the original author can edit.
+     */
+    edit: protectedProcedure
+      .input(
+        z.object({
+          commentId: z.number().int().positive(),
+          content: z.string().min(1).max(5000),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { editComment } = await import("./config/commentService");
+        const updated = editComment(input.commentId, ctx.user!.id, input.content);
+        if (!updated) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Comment not found or you are not the author." });
+        }
+        return updated;
+      }),
+
+    /**
+     * Delete a comment. Authors can delete their own. Edit-level users can
+     * delete any comment on their module.
+     */
+    delete: protectedProcedure
+      .input(z.object({ commentId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const { getComment, deleteComment: removeComment } = await import("./config/commentService");
+        const comment = getComment(input.commentId);
+        if (!comment) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Comment not found." });
+        }
+
+        // Check if user is author OR has edit access on the module
+        const { getModuleForEntityType } = await import("./config/commentService");
+        const { hasAccess } = await import("./config/modulePermissionService");
+        const moduleId = getModuleForEntityType(comment.entityType);
+        const moduleAccessList = (ctx.user as any).officialModuleAccess as string[] | null ?? null;
+        const isEditUser = hasAccess(ctx.user!.id, ctx.user!.role, moduleId, "edit", moduleAccessList);
+
+        const deleted = removeComment(input.commentId, ctx.user!.id, isEditUser);
+        if (!deleted) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete your own comments unless you have edit access." });
+        }
+
+        return { ok: true };
+      }),
+
+    /**
+     * Recent comments across all modules (admin dashboard).
+     */
+    recent: superAdminProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
+      .query(async ({ input }) => {
+        const { getRecentComments } = await import("./config/commentService");
+        return getRecentComments(input.limit);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

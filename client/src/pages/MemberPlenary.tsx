@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { CommentSection } from "@/components/CommentSection";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -205,6 +206,9 @@ export default function MemberPlenary() {
                             </div>
                           </div>
                           <Badge className={`ml-3 border ${getStatusColor(res.status)}`}>{res.status}</Badge>
+                        </div>
+                        <div className="mt-3">
+                          <CommentSection entityType="plenary" entityId={res.id} module="governance" compact />
                         </div>
                       </CardContent>
                     </Card>

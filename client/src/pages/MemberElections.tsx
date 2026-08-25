@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { CommentSection } from "@/components/CommentSection";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -156,6 +157,10 @@ export default function MemberElections() {
               <p className="text-sm text-blue-700">Voting opens on {new Date(election.votingStart).toLocaleDateString()}.</p>
             </div>
           )}
+
+          <div className="mt-4">
+            <CommentSection entityType="election" entityId={election.id} module="elections" compact />
+          </div>
         </CardContent>
       </Card>
     );
