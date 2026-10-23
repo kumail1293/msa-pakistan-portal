@@ -56,7 +56,7 @@ describe("Phase 14: State Machine — Workflow transitions", () => {
 
 describe("Phase 14: Membership Termination State Machine", () => {
   it("termination engine has valid state transitions", async () => {
-    const { membershipTerminationEngine } = await import("./membershipTerminationEngine");
+    const { membershipTerminationEngine } = await import("./membershipWorkflowService");
     expect(typeof membershipTerminationEngine.initiateTermination).toBe("function");
     expect(typeof membershipTerminationEngine.issueShowCause).toBe("function");
     expect(typeof membershipTerminationEngine.submitShowCauseResponse).toBe("function");

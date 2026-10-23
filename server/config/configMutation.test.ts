@@ -258,7 +258,7 @@ describe("Config Mutation: No hardcoded values in engines", () => {
 
   it("membershipTerminationEngine uses getConfig for deadline", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("server/config/membershipTerminationEngine.ts", "utf-8");
+    const content = fs.readFileSync("server/config/membershipWorkflowService.ts", "utf-8");
     expect(content).toContain("getConfigNumber");
     expect(content).not.toContain("getDate() + 7");
   });

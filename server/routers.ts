@@ -3358,21 +3358,21 @@ export const appRouter = router({
     // ── Member Lifecycle (§9, §12) ────────────────────────────────
     memberLifecycle: router({
       applications: officialModuleProcedure("config").input(z.object({ status: z.string().optional(), limit: z.number().optional() }).optional()).query(async ({ input }) => {
-        const { memberLifecycleEngine } = await import("./config/memberLifecycleEngine");
+        const { memberLifecycleEngine } = await import("./config/membershipWorkflowService");
         return memberLifecycleEngine.list(input ?? {});
       }),
       stats: officialModuleProcedure("config").query(async () => {
-        const { memberLifecycleEngine } = await import("./config/memberLifecycleEngine");
+        const { memberLifecycleEngine } = await import("./config/membershipWorkflowService");
         return memberLifecycleEngine.getStats();
       }),
     }),
     onboarding: router({
       progress: officialModuleProcedure("config").input(z.object({ userId: z.number() })).query(async ({ input }) => {
-        const { onboardingEngine } = await import("./config/memberLifecycleEngine");
+        const { onboardingEngine } = await import("./config/membershipWorkflowService");
         return onboardingEngine.getProgress(input.userId);
       }),
       tasks: officialModuleProcedure("config").query(async () => {
-        const { onboardingEngine } = await import("./config/memberLifecycleEngine");
+        const { onboardingEngine } = await import("./config/membershipWorkflowService");
         return onboardingEngine.listTasks();
       }),
     }),

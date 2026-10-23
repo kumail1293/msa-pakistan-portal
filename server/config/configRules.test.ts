@@ -356,17 +356,17 @@ describe("Finance Engine — Configurable thresholds", () => {
 
 describe("Membership Termination Engine — Configurable deadlines", () => {
   it("should export membershipTerminationEngine", async () => {
-    const { membershipTerminationEngine } = await import("./membershipTerminationEngine");
+    const { membershipTerminationEngine } = await import("./membershipWorkflowService");
     expect(membershipTerminationEngine).toBeDefined();
   });
 
   it("should have validateTerminationInitiation function", async () => {
-    const { membershipTerminationEngine } = await import("./membershipTerminationEngine");
+    const { membershipTerminationEngine } = await import("./membershipWorkflowService");
     expect(typeof membershipTerminationEngine.validateTerminationInitiation).toBe("function");
   });
 
   it("validateTerminationInitiation should reject empty reason", async () => {
-    const { membershipTerminationEngine } = await import("./membershipTerminationEngine");
+    const { membershipTerminationEngine } = await import("./membershipWorkflowService");
     const result = membershipTerminationEngine.validateTerminationInitiation("conduct_based", "");
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
@@ -463,7 +463,7 @@ describe("Hardcode Verification — No hardcoded term years in key engines", () 
   it("membershipTerminationEngine should not have hardcoded 7-day appeal deadline", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "server/config/membershipTerminationEngine.ts",
+      "server/config/membershipWorkflowService.ts",
       "utf-8"
     );
     // Should use getConfigNumber, not `date.getDate() + 7`
