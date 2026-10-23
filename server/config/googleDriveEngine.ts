@@ -118,6 +118,7 @@ export interface BulkSpreadsheetColumn {
   type: "text" | "number" | "date" | "select" | "checkbox" | "email" | "phone";
   editable: boolean;
   options?: string[];
+  optionsSource?: string;
   defaultValue?: unknown;
   validation?: string;
 }

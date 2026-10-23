@@ -31,6 +31,13 @@ import {
 import { users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { logAuditEvent } from "./auditService";
+import {
+  generateVoterHash as _generateVoterHash,
+  encryptBallot as _encryptBallot,
+  decryptBallot as _decryptBallot,
+  parseVersionedCiphertext,
+  serializeVersionedCiphertext,
+} from "./electionCrypto";
 
 // ============================================================================
 // Types
@@ -751,13 +758,24 @@ export async function countVotes(
       elected: boolean;
     }>;
 
+    // Decrypt all ballots before counting
+    const decryptedBallots: Array<{ raw: any; data: Record<string, unknown> }> = [];
+    for (const ballot of electionBallots) {
+      try {
+        const data = await decryptBallot(ballot.encryptedBallot, ballot.iv, electionId);
+        decryptedBallots.push({ raw: ballot, data });
+      } catch {
+        console.warn(`[Elections] Failed to decrypt ballot #${ballot.id} — skipping`);
+      }
+    }
+
     if (method === "plurality") {
-      results = countPlurality(electionBallots);
+      results = countPlurality(decryptedBallots);
     } else if (method === "ranked_choice") {
-      results = await countRankedChoice(electionBallots, electionId);
+      results = await countRankedChoice(decryptedBallots, electionId);
     } else {
       // Default to plurality
-      results = countPlurality(electionBallots);
+      results = countPlurality(decryptedBallots);
     }
 
     // Get turnout
@@ -934,8 +952,24 @@ export async function resolveDispute(
 /**
  * Count votes using plurality method.
  */
+/**
+ * Decrypt a single ballot row for counting.
+ * Returns null if decryption fails (tampered/invalid ballot).
+ */
+async function decryptBallotForCounting(
+  ballot: any,
+  electionId: number
+): Promise<Record<string, unknown> | null> {
+  try {
+    const { iv, encryptedBallot } = ballot;
+    return await decryptBallot(encryptedBallot, iv, electionId);
+  } catch {
+    return null;
+  }
+}
+
 function countPlurality(
-  electionBallots: any[]
+  decryptedBallots: Array<{ raw: any; data: Record<string, unknown> }>
 ): Array<{
   candidateId: number;
   votes: number;
@@ -945,12 +979,9 @@ function countPlurality(
 }> {
   const counts = new Map<number, number>();
 
-  for (const ballot of electionBallots) {
+  for (const { data } of decryptedBallots) {
     try {
-      // In a real implementation, this would decrypt the ballot
-      // For now, assume ballotData is accessible
-      const data = JSON.parse(ballot.encryptedBallot); // Placeholder
-      const candidateId = data.candidateId;
+      const candidateId = data.candidateId as number | undefined;
       if (candidateId) {
         counts.set(candidateId, (counts.get(candidateId) ?? 0) + 1);
       }
@@ -959,7 +990,7 @@ function countPlurality(
     }
   }
 
-  const total = electionBallots.length;
+  const total = decryptedBallots.length;
 
   return Array.from(counts.entries())
     .map(([candidateId, votes]) => ({
@@ -981,7 +1012,7 @@ function countPlurality(
  * Count votes using ranked choice method.
  */
 async function countRankedChoice(
-  electionBallots: any[],
+  decryptedBallots: Array<{ raw: any; data: Record<string, unknown> }>,
   electionId: number
 ): Promise<Array<{
   candidateId: number;
@@ -1013,9 +1044,8 @@ async function countRankedChoice(
   while (remainingCandidates.length > 1 && elected.length === 0) {
     // Count first preferences
     const countsMap = new Map<number, number>();
-    for (const ballot of electionBallots) {
+    for (const { data } of decryptedBallots) {
       try {
-        const data = JSON.parse(ballot.encryptedBallot);
         const rankings = data.rankings as number[] | undefined;
         if (rankings && rankings.length > 0) {
           // Find first remaining candidate in rankings
@@ -1035,7 +1065,7 @@ async function countRankedChoice(
     rounds.push({ round, counts });
 
     // Check for majority
-    const totalValid = electionBallots.length;
+    const totalValid = decryptedBallots.length;
     for (const [candidateIdStr, votes] of Object.entries(counts)) {
       const candidateId = Number(candidateIdStr);
       if (votes > totalValid / 2) {
@@ -1068,7 +1098,7 @@ async function countRankedChoice(
     elected.push(remainingCandidates[0]);
   }
 
-  const total = electionBallots.length;
+  const total = decryptedBallots.length;
 
   return electionCandidates
     .map((c) => {
@@ -1085,55 +1115,49 @@ async function countRankedChoice(
 }
 
 // ============================================================================
-// Helpers
+// Secure Crypto Wrappers
 // ============================================================================
 
 /**
- * Generate a hash for voter identity (anonymous voting).
+ * Generate voter hash using HMAC-SHA256 (from electionCrypto module).
  */
-async function generateVoterHash(
-  electionId: number,
-  voterId: number
-): Promise<string> {
-  // In production, use a proper hash with a salt
-  const data = `${electionId}:${voterId}:${process.env.ELECTION_SALT || "default-salt"}`;
-  // Simple hash for demo - use crypto.createHash in production
-  let hash = 0;
-  for (let i = 0; i < data.length; i++) {
-    const char = data.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return `voter_${Math.abs(hash).toString(16)}`;
+async function generateVoterHash(electionId: number, voterId: number): Promise<string> {
+  return _generateVoterHash(electionId, voterId);
 }
 
 /**
- * Encrypt ballot data.
+ * Encrypt ballot using AES-256-GCM (from electionCrypto module).
+ * Returns versioned ciphertext: v{N}:{ciphertext}:{authTag}
  */
 async function encryptBallot(
   ballotData: Record<string, unknown>,
   electionId: number
 ): Promise<{ encryptedBallot: string; iv: string }> {
-  // In production, use proper encryption (AES-256)
-  // For now, base64 encode (NOT secure - placeholder)
-  const plaintext = JSON.stringify(ballotData);
-  const encryptedBallot = Buffer.from(plaintext).toString("base64");
-  const iv = `iv_${electionId}_${Date.now()}`;
-  
-  return { encryptedBallot, iv };
+  const result = await _encryptBallot(ballotData, electionId);
+  const versioned = serializeVersionedCiphertext(
+    result.keyVersion,
+    result.ciphertext,
+    result.authTag
+  );
+  return { encryptedBallot: versioned, iv: result.iv };
 }
 
 /**
- * Decrypt ballot data.
+ * Decrypt ballot using AES-256-GCM (from electionCrypto module).
  */
 async function decryptBallot(
   encryptedBallot: string,
-  _iv: string
+  iv: string,
+  electionId: number
 ): Promise<Record<string, unknown>> {
-  // In production, use proper decryption
-  // For now, base64 decode (NOT secure - placeholder)
-  const plaintext = Buffer.from(encryptedBallot, "base64").toString("utf-8");
-  return JSON.parse(plaintext);
+  const parsed = parseVersionedCiphertext(encryptedBallot);
+  return _decryptBallot(
+    parsed.ciphertext,
+    iv,
+    parsed.authTag,
+    parsed.keyVersion,
+    electionId
+  );
 }
 
 // ============================================================================

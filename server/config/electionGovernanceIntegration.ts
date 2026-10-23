@@ -52,6 +52,13 @@ import { logAuditEvent } from "./auditService";
 import { getCurrentGovernanceVersion } from "./termService";
 import { resolveEffectiveRule, getParameter } from "./governanceRulesEngine";
 import { calculateVoteEntitlement } from "./governanceRulesEngine";
+import {
+  generateVoterHash as _generateVoterHash,
+  encryptBallot as _encryptBallot,
+  decryptBallot as _decryptBallot,
+  parseVersionedCiphertext,
+  serializeVersionedCiphertext,
+} from "./electionCrypto";
 
 // ============================================================================
 // Types
@@ -294,106 +301,47 @@ export async function getVotingMatrix(
 // ============================================================================
 
 /**
- * Generate a secure voter hash (anonymous voting).
- * The hash prevents duplicate voting without revealing voter identity.
+ * Generate voter hash using HMAC-SHA256 (via electionCrypto module).
+ * Prevents duplicate voting without revealing voter identity.
  */
-async function generateVoterHash(
-  electionId: number,
-  voterId: number
-): Promise<string> {
-  const db = getDb();
-  if (!db) throw new Error("Database not available");
-
-  // Use election-specific salt to prevent cross-election linking
-  const [election] = await db
-    .select()
-    .from(elections)
-    .where(eq(elections.id, electionId))
-    .limit(1);
-
-  const salt = process.env.ELECTION_SALT || "msap-election-default-salt";
-  const data = `${electionId}:${voterId}:${salt}:${election?.createdAt?.getTime() ?? 0}`;
-
-  // SHA-256 hash
-  const crypto = await import("crypto");
-  return crypto.createHash("sha256").update(data).digest("hex");
+async function generateVoterHash(electionId: number, voterId: number): Promise<string> {
+  return _generateVoterHash(electionId, voterId);
 }
 
 /**
- * Encrypt ballot data using AES-256-GCM.
- * Provides confidentiality and integrity.
+ * Encrypt ballot using AES-256-GCM (via electionCrypto module).
  */
 async function encryptBallot(
   ballotData: Record<string, unknown>,
   electionId: number
-): Promise<{ encryptedBallot: string; iv: string; hmac: string }> {
-  const crypto = await import("crypto");
-
-  // Generate random IV
-  const iv = crypto.randomBytes(16);
-
-  // Derive key from election ID and environment secret
-  const keyMaterial = `${process.env.ELECTION_KEY || "msap-election-key"}:${electionId}`;
-  const key = crypto.createHash("sha256").update(keyMaterial).digest();
-
-  // Encrypt using AES-256-GCM
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const plaintext = JSON.stringify(ballotData);
-  let encrypted = cipher.update(plaintext, "utf8", "hex");
-  encrypted += cipher.final("hex");
-  const authTag = cipher.getAuthTag().toString("hex");
-
-  // Generate HMAC for additional integrity verification
-  const hmac = crypto
-    .createHmac("sha256", key)
-    .update(encrypted + authTag)
-    .digest("hex");
-
-  return {
-    encryptedBallot: encrypted + ":" + authTag,
-    iv: iv.toString("hex"),
-    hmac,
-  };
+): Promise<{ encryptedBallot: string; iv: string }> {
+  const result = await _encryptBallot(ballotData, electionId);
+  const versioned = serializeVersionedCiphertext(
+    result.keyVersion,
+    result.ciphertext,
+    result.authTag
+  );
+  return { encryptedBallot: versioned, iv: result.iv };
 }
 
 /**
- * Decrypt ballot data.
+ * Decrypt ballot using AES-256-GCM (via electionCrypto module).
  */
 async function decryptBallot(
   encryptedBallot: string,
   iv: string,
-  hmac: string,
+  _hmac: string,
   electionId: number
 ): Promise<Record<string, unknown> | null> {
   try {
-    const crypto = await import("crypto");
-
-    // Verify HMAC
-    const keyMaterial = `${process.env.ELECTION_KEY || "msap-election-key"}:${electionId}`;
-    const key = crypto.createHash("sha256").update(keyMaterial).digest();
-
-    const [encrypted, authTag] = encryptedBallot.split(":");
-    const expectedHmac = crypto
-      .createHmac("sha256", key)
-      .update(encrypted + authTag)
-      .digest("hex");
-
-    if (hmac !== expectedHmac) {
-      console.error("[Election] Ballot integrity check failed");
-      return null;
-    }
-
-    // Decrypt
-    const decipher = crypto.createDecipheriv(
-      "aes-256-gcm",
-      key,
-      Buffer.from(iv, "hex")
+    const parsed = parseVersionedCiphertext(encryptedBallot);
+    return await _decryptBallot(
+      parsed.ciphertext,
+      iv,
+      parsed.authTag,
+      parsed.keyVersion,
+      electionId
     );
-    decipher.setAuthTag(Buffer.from(authTag, "hex"));
-    let decrypted = decipher.update(encrypted, "hex", "utf8");
-    decrypted += decipher.final("utf8");
-
-    return JSON.parse(decrypted);
   } catch (error) {
     console.error("[Election] Failed to decrypt ballot:", error);
     return null;
@@ -460,7 +408,7 @@ export async function secureCastBallot(
     }
 
     // Encrypt ballot
-    const { encryptedBallot, iv, hmac } = await encryptBallot(ballotData, electionId);
+    const { encryptedBallot, iv } = await encryptBallot(ballotData, electionId);
 
     // Store ballot
     const [result] = await db.insert(ballots).values({

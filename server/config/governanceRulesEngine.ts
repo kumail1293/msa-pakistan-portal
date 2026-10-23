@@ -20,7 +20,7 @@ import {
 } from "../../drizzle/schema.governance_rules";
 import { getDb } from "../db";
 import { logAuditEvent } from "./auditService";
-import { getCurrentGovernanceVersion, getTermStartDate } from "./termService";
+import { getCurrentGovernanceVersion, getCurrentTerm } from "./termService";
 
 // ============================================================================
 // Types
@@ -704,7 +704,7 @@ export async function seedGovernanceParameters(): Promise<void> {
         category: param.category,
         sourceClause: param.sourceClause,
         governanceVersion: await getCurrentGovernanceVersion(),
-        effectiveFrom: getTermStartDate(),
+        effectiveFrom: (await getCurrentTerm()).startDate,
       });
       seeded++;
     }

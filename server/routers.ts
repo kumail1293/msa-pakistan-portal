@@ -819,7 +819,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const result = await db.castVote(
           input.sessionId,
-          ctx.user.id,
+          ctx.user!.id,
           input.voteOption
         );
         if (!result.success) {
@@ -830,7 +830,7 @@ export const appRouter = router({
               : "Could not record your vote. Please try again.",
           });
         }
-        void logAuditForUser(ctx.user, "voting.vote_cast", {
+        void logAuditForUser(ctx.user!, "voting.vote_cast", {
           category: "governance",
           entityType: "voting_session",
           entityId: input.sessionId,
@@ -4656,7 +4656,7 @@ export const appRouter = router({
           entityId: input.entityId,
           userId: ctx.user!.id,
           userName: ctx.user!.name || "Unknown",
-          userRole: ctx.user!.role,
+          userRole: ctx.user!.role ?? "user",
           content: input.content,
         });
 

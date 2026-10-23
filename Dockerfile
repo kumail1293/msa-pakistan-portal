@@ -21,16 +21,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy built files
+# Copy built files (vite → dist/public, esbuild → dist/index.js)
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/client/dist ./client/dist
 
-# Copy server files
+# Copy server files (needed for runtime imports that esbuild externalized)
 COPY server/ ./server/
 COPY drizzle/ ./drizzle/
-
-# Copy public assets
-COPY client/public/ ./client/public/
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -40,4 +36,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
 
-CMD ["node", "dist/server/index.js"]
+CMD ["node", "dist/index.js"]

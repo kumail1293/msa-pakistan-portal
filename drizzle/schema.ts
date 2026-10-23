@@ -134,6 +134,8 @@ export const localCouncils = mysqlTable("local_councils", {
     "Candidate LC",
     "Temporary LC",
     "Permanent LC",
+    "Suspended",
+    "Archived",
   ]).default("Candidate LC"),
   logoUrl: varchar("logoUrl", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow(),

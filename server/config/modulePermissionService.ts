@@ -74,8 +74,8 @@ import * as path from "path";
 const STORE_PATH = path.join(process.cwd(), ".data", "module-permissions.json");
 
 interface StoredPermissions {
-  permissions: Record<string, Record<string, ModuleAccessLevel>>;
   // "userId:module" -> accessLevel
+  permissions: Record<string, ModuleAccessLevel>;
   defaultAccess: ModuleAccessLevel;
   superadminOverrides: Record<string, ModuleAccessLevel>;
 }
@@ -125,7 +125,7 @@ loadStore();
  */
 export function getModuleAccess(
   userId: number,
-  userRole: string,
+  userRole: string | null,
   moduleId: string,
   moduleAccessList: string[] | null = null
 ): ModuleAccessLevel {
@@ -151,7 +151,7 @@ export function getModuleAccess(
  */
 export function getAllModuleAccess(
   userId: number,
-  userRole: string,
+  userRole: string | null,
   moduleAccessList: string[] | null = null
 ): Record<string, ModuleAccessLevel> {
   const result: Record<string, ModuleAccessLevel> = {};
@@ -272,7 +272,7 @@ export function getModulePermissions(moduleId: string): ModulePermission[] {
  */
 export function hasAccess(
   userId: number,
-  userRole: string,
+  userRole: string | null,
   moduleId: string,
   requiredLevel: ModuleAccessLevel,
   moduleAccessList: string[] | null = null
@@ -286,7 +286,7 @@ export function hasAccess(
  */
 export function canView(
   userId: number,
-  userRole: string,
+  userRole: string | null,
   moduleId: string,
   moduleAccessList?: string[] | null
 ): boolean {
@@ -298,7 +298,7 @@ export function canView(
  */
 export function canComment(
   userId: number,
-  userRole: string,
+  userRole: string | null,
   moduleId: string,
   moduleAccessList?: string[] | null
 ): boolean {
@@ -310,7 +310,7 @@ export function canComment(
  */
 export function canEdit(
   userId: number,
-  userRole: string,
+  userRole: string | null,
   moduleId: string,
   moduleAccessList?: string[] | null
 ): boolean {

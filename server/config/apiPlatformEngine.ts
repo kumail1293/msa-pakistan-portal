@@ -25,14 +25,8 @@ function hashApiKey(str: string): string {
     const crypto = require("crypto");
     return crypto.createHash("sha256").update(str).digest("hex");
   } catch {
-    // Fallback for environments without Node.js crypto
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash |= 0;
-    }
-    return Math.abs(hash).toString(16).padStart(16, "0");
+    // crypto is always available in Node.js; this fallback should never execute
+    throw new Error("Node.js crypto module is required for API key hashing");
   }
 }
 

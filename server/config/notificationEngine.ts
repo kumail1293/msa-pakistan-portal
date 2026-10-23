@@ -23,6 +23,9 @@
 import { getConfig, getConfigNumber } from "./configService";
 import { getCurrentGovernanceVersion, getTermDisplayString } from "./termService";
 import { logAuditEvent } from "./auditService";
+import { getDb } from "../db";
+import { inAppNotifications, notificationPreferences } from "../../drizzle/schema.notifications";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 // ============================================================================
 // Types
@@ -422,4 +425,150 @@ export function getNotificationTemplate(
   type: string
 ): (typeof NOTIFICATION_TEMPLATES)[string] | null {
   return NOTIFICATION_TEMPLATES[type] ?? null;
+}
+
+// ============================================================================
+// Notification CRUD (routes need these)
+// ============================================================================
+
+/**
+ * List in-app notifications for a user.
+ */
+export async function getNotifications(
+  userId: number,
+  options?: { limit?: number; unreadOnly?: boolean }
+): Promise<Array<typeof inAppNotifications.$inferSelect>> {
+  const db = getDb();
+  if (!db) return [];
+
+  const conditions = [eq(inAppNotifications.userId, userId)];
+  if (options?.unreadOnly) {
+    conditions.push(eq(inAppNotifications.read, false));
+  }
+
+  return db
+    .select()
+    .from(inAppNotifications)
+    .where(and(...conditions))
+    .orderBy(desc(inAppNotifications.createdAt))
+    .limit(options?.limit ?? 50);
+}
+
+/**
+ * Get count of unread notifications for a user.
+ */
+export async function getUnreadCount(userId: number): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  const [result] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(inAppNotifications)
+    .where(and(eq(inAppNotifications.userId, userId), eq(inAppNotifications.read, false)));
+
+  return result?.count ?? 0;
+}
+
+/**
+ * Mark notifications as read.
+ */
+export async function markAsRead(
+  userId: number,
+  notificationIds: number[]
+): Promise<{ updated: number }> {
+  const db = getDb();
+  if (!db) return { updated: 0 };
+
+  const result = await db
+    .update(inAppNotifications)
+    .set({ read: true, readAt: new Date() })
+    .where(
+      and(
+        eq(inAppNotifications.userId, userId),
+        sql`${inAppNotifications.id} IN ${notificationIds}`
+      )
+    );
+
+  return { updated: (result as any).affectedRows ?? 0 };
+}
+
+/**
+ * Get notification preferences for a user.
+ */
+export async function getUserPreferences(userId: number): Promise<typeof notificationPreferences.$inferSelect | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const [pref] = await db
+    .select()
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, userId))
+    .limit(1);
+
+  return pref ?? null;
+}
+
+/**
+ * Update notification preferences for a user (upsert).
+ */
+export async function updatePreferences(
+  userId: number,
+  input: {
+    emailEnabled?: boolean;
+    smsEnabled?: boolean;
+    pushEnabled?: boolean;
+    inAppEnabled?: boolean;
+  }
+): Promise<typeof notificationPreferences.$inferSelect> {
+  const db = getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const existing = await getUserPreferences(userId);
+
+  if (existing) {
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.emailEnabled !== undefined) updates.emailEnabled = input.emailEnabled;
+    if (input.smsEnabled !== undefined) updates.smsEnabled = input.smsEnabled;
+    if (input.pushEnabled !== undefined) updates.pushEnabled = input.pushEnabled;
+    if (input.inAppEnabled !== undefined) updates.inAppEnabled = input.inAppEnabled;
+
+    await db
+      .update(notificationPreferences)
+      .set(updates)
+      .where(eq(notificationPreferences.userId, userId));
+  } else {
+    await db.insert(notificationPreferences).values({
+      userId,
+      emailEnabled: input.emailEnabled ?? true,
+      smsEnabled: input.smsEnabled ?? false,
+      pushEnabled: input.pushEnabled ?? true,
+      inAppEnabled: input.inAppEnabled ?? true,
+    });
+  }
+
+  return (await getUserPreferences(userId))!;
+}
+
+/**
+ * List all notification templates (alias for getNotificationTemplates).
+ */
+export function listTemplates(): Array<{
+  type: string;
+  subject: string;
+  channels: NotificationChannel[];
+  priority: NotificationPriority;
+}> {
+  return getNotificationTemplates();
+}
+
+/**
+ * Seed default notification templates into the database.
+ * Currently templates are in-memory; this is a no-op until a templates table is added.
+ */
+export async function seedDefaultTemplates(): Promise<{ seeded: number }> {
+  // Templates are currently defined in-memory via NOTIFICATION_TEMPLATES.
+  // When a persistent templates table is added, this function will migrate
+  // the in-memory defaults to the database.
+  console.log("[Notification] seedDefaultTemplates: templates are in-memory (no-op)");
+  return { seeded: 0 };
 }

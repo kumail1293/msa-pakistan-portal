@@ -747,7 +747,8 @@ export async function getLCStatistics(): Promise<{
 
   const byStatus: Record<string, number> = {};
   for (const lc of allLCs) {
-    byStatus[lc.status] = (byStatus[lc.status] ?? 0) + 1;
+    const status = lc.status ?? "Unknown";
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
   }
 
   return {
