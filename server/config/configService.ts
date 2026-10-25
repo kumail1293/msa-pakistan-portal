@@ -14,11 +14,21 @@
  */
 
 import { eq } from "drizzle-orm";
-import { configuration } from "../../drizzle/schema";
-import { getDb } from "../db";
 import { childLogger } from "../_core/logger";
+import { isMySqlDatabaseUrl } from "../dbUrl";
 
 const log = childLogger("ConfigService");
+
+async function getConfigurationDatabase() {
+  if (!isMySqlDatabaseUrl(process.env.DATABASE_URL)) return null;
+
+  const [{ getDb }, { configuration }] = await Promise.all([
+    import("../db"),
+    import("../../drizzle/schema"),
+  ]);
+  const db = getDb();
+  return db ? { db, configuration } : null;
+}
 
 // ============================================================================
 // Cache
@@ -71,13 +81,13 @@ export async function getConfig(
   if (cached !== undefined) return cached;
 
   // 2. Check database
-  const db = getDb();
-  if (db) {
+  const store = await getConfigurationDatabase();
+  if (store) {
     try {
-      const rows = await db
+      const rows = await store.db
         .select()
-        .from(configuration)
-        .where(eq(configuration.key, key))
+        .from(store.configuration)
+        .where(eq(store.configuration.key, key))
         .limit(1);
 
       if (rows.length > 0 && rows[0].value !== null && rows[0].value !== undefined) {
@@ -146,22 +156,22 @@ export async function setConfig(
   value: string,
   category?: string
 ): Promise<void> {
-  const db = getDb();
-  if (!db) {
+  const store = await getConfigurationDatabase();
+  if (!store) {
     log.warn({ key }, "Cannot set key — no database configured");
     return;
   }
 
   try {
     // Try to update first
-    const result = await db
-      .update(configuration)
+    const result = await store.db
+      .update(store.configuration)
       .set({ value, ...(category ? { category } : {}) })
-      .where(eq(configuration.key, key));
+      .where(eq(store.configuration.key, key));
 
     // If no rows were affected, insert
     if (!result || (result as any).affectedRows === 0) {
-      await db.insert(configuration).values({
+      await store.db.insert(store.configuration).values({
         key,
         value,
         ...(category ? { category } : {}),
@@ -180,8 +190,8 @@ export async function setConfig(
 export async function setConfigs(
   entries: Array<{ key: string; value: string; category?: string }>
 ): Promise<void> {
-  const db = getDb();
-  if (!db) return;
+  const store = await getConfigurationDatabase();
+  if (!store) return;
 
   try {
     for (const entry of entries) {
@@ -196,11 +206,13 @@ export async function setConfigs(
  * Delete a configuration value from the database and invalidate the cache.
  */
 export async function deleteConfig(key: string): Promise<void> {
-  const db = getDb();
-  if (!db) return;
+  const store = await getConfigurationDatabase();
+  if (!store) return;
 
   try {
-    await db.delete(configuration).where(eq(configuration.key, key));
+    await store.db
+      .delete(store.configuration)
+      .where(eq(store.configuration.key, key));
     cacheInvalidate(key);
   } catch (error) {
     log.error({ err: error, key }, "Failed to delete key");
@@ -218,11 +230,11 @@ export async function deleteConfig(key: string): Promise<void> {
 export async function getAllConfigs(
   category?: string
 ): Promise<Array<{ key: string; value: string; category: string | null }>> {
-  const db = getDb();
-  if (!db) return [];
+  const store = await getConfigurationDatabase();
+  if (!store) return [];
 
   try {
-    const rows = await db.select().from(configuration);
+    const rows = await store.db.select().from(store.configuration);
     const filtered = category
       ? rows.filter((r) => r.category === category)
       : rows;
@@ -742,20 +754,20 @@ export const CONFIG_DEFINITIONS: ConfigDefinition[] = [
  * keys — never overwrites existing values). Safe to call on every boot.
  */
 export async function seedDefaultConfigs(): Promise<void> {
-  const db = getDb();
-  if (!db) return;
+  const store = await getConfigurationDatabase();
+  if (!store) return;
 
   try {
     let seeded = 0;
     for (const def of CONFIG_DEFINITIONS) {
-      const existing = await db
-        .select({ key: configuration.key })
-        .from(configuration)
-        .where(eq(configuration.key, def.key))
+      const existing = await store.db
+        .select({ key: store.configuration.key })
+        .from(store.configuration)
+        .where(eq(store.configuration.key, def.key))
         .limit(1);
 
       if (existing.length === 0) {
-        await db.insert(configuration).values({
+        await store.db.insert(store.configuration).values({
           key: def.key,
           value: def.defaultValue,
           category: def.category,

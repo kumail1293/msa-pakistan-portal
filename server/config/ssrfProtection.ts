@@ -123,6 +123,13 @@ function isBlockedIp(ip: string): string | null {
   return null;
 }
 
+function getLiteralIpv4(hostname: string): string | null {
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return null;
+  const parts = hostname.split(".").map(Number);
+  if (parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) return null;
+  return hostname;
+}
+
 // ============================================================================
 // Validation
 // ============================================================================
@@ -167,7 +174,20 @@ export async function validateUrl(urlString: string): Promise<SSRFValidationResu
     }
   }
 
-  // 5. DNS resolution + IP check
+  // 5. Literal IP / DNS resolution + IP check
+  const literalIp = getLiteralIpv4(hostname);
+  if (literalIp) {
+    const blocked = isBlockedIp(literalIp);
+    if (blocked) {
+      return {
+        safe: false,
+        reason: `Resolved IP ${literalIp} is in blocked range (${blocked})`,
+        resolvedIp: literalIp,
+      };
+    }
+  }
+
+  // DNS must resolve successfully before a hostname can be trusted.
   try {
     const ips = await dns.promises.resolve4(hostname);
     for (const ip of ips) {
@@ -181,7 +201,6 @@ export async function validateUrl(urlString: string): Promise<SSRFValidationResu
       }
     }
   } catch (error: any) {
-    // DNS resolution failure — could be DNS rebinding attempt
     return {
       safe: false,
       reason: `DNS resolution failed: ${error.message ?? "unknown error"}`,

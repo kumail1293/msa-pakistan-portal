@@ -163,7 +163,7 @@ async function startServer() {
   // Global catch-all AFTER every route: generic 500, full details server-side.
   registerErrorHandler(app);
 
-  const port = 3000;
+  const port = (parseInt(process.env.PORT as string) || 3000) as number;
 
   // Pre-load branding defaults so sync getSmtpConfig() uses real values.
   await initEmailBranding();

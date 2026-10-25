@@ -97,6 +97,9 @@ jspm_packages/
 .out
 .storybook-out
 
+# Generated output files
+*.out
+
 # Temporary folders
 tmp/
 temp/
@@ -138,3 +141,6 @@ pnpm-lock.yaml.*
 
 # Browser test scripts
 browser-test.mjs
+
+# Security audit output (security-audit skill)
+security-audit/

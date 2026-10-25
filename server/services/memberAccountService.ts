@@ -1486,7 +1486,7 @@ export async function syncApprovedMember(
 
 export function getPortalBaseUrl(): string {
   const base = ENV.portalBaseUrl?.trim();
-  return base || "http://localhost:3000";
+  return base || `http://localhost:${process.env.PORT || 3000}`;
 }
 
 /** Build the safe profile payload for the member dashboard. */

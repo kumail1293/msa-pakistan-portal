@@ -11,7 +11,8 @@
  * - Security invariants
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import dns from "node:dns";
+import { afterEach, describe, it, expect, beforeEach, vi } from "vitest";
 import {
   validateUrl,
   safeFetchUrl,
@@ -33,6 +34,14 @@ import crypto from "crypto";
 // ============================================================================
 
 describe("SSRF Protection", () => {
+  beforeEach(() => {
+    vi.spyOn(dns.promises, "resolve4").mockResolvedValue(["93.184.216.34"]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe("validateUrl", () => {
     it("blocks localhost", async () => {
       const result = await validateUrl("http://localhost:3000/admin");
@@ -87,6 +96,17 @@ describe("SSRF Protection", () => {
     it("allows valid HTTPS URLs", async () => {
       const result = await validateUrl("https://example.com/document.pdf");
       expect(result.safe).toBe(true);
+    });
+
+    it("rejects hostnames when DNS resolution fails", async () => {
+      vi.mocked(dns.promises.resolve4).mockRejectedValueOnce(
+        new Error("DNS unavailable")
+      );
+
+      const result = await validateUrl("https://example.com/document.pdf");
+
+      expect(result.safe).toBe(false);
+      expect(result.reason).toContain("DNS resolution failed");
     });
 
     it("blocks invalid URL format", async () => {

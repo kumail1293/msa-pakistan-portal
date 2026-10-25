@@ -38,9 +38,9 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 3000,
+    port: (parseInt(process.env.PORT as string) || 3000) as number,
     host: true,
-    strictPort: true,
+    strictPort: false,
     allowedHosts: ["localhost", "127.0.0.1"],
     fs: {
       strict: true,

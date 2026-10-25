@@ -689,15 +689,37 @@ export const appRouter = router({
     approve: protectedProcedure
       .input(z.object({ applicationId: z.number(), notes: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
+        const user = ctx.user;
+        const role = user?.role;
+
+        // Role check: only official or superadmin can approve.
+        if (!user || !role || !["official", "superadmin"].includes(role)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You do not have permission to approve membership applications.",
+          });
+        }
+
         const { approveMembership } = await import("./config/membershipWorkflowService");
-        return approveMembership(input.applicationId, ctx.user!.id, input.notes);
+        return approveMembership(input.applicationId, user.id, input.notes);
       }),
 
     reject: protectedProcedure
       .input(z.object({ applicationId: z.number(), reason: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
+        const user = ctx.user;
+        const role = user?.role;
+
+        // Role check: only official or superadmin can reject.
+        if (!user || !role || !["official", "superadmin"].includes(role)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You do not have permission to reject membership applications.",
+          });
+        }
+
         const { rejectMembership } = await import("./config/membershipWorkflowService");
-        return rejectMembership(input.applicationId, ctx.user!.id, input.reason);
+        return rejectMembership(input.applicationId, user.id, input.reason);
       }),
 
     pending: protectedProcedure.query(async () => {

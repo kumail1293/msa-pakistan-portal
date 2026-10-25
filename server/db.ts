@@ -51,6 +51,7 @@ import {
 import { ENV } from "./_core/env";
 import * as memberAccounts from "./services/memberAccountService";
 import { childLogger } from "./_core/logger";
+import { isMySqlDatabaseUrl } from "./dbUrl";
 
 const log = childLogger("Database");
 
@@ -68,7 +69,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 function getPool(): mysql.Pool | null {
   if (_pool) return _pool;
   const url = process.env.DATABASE_URL;
-  if (!url) return null;
+  if (!isMySqlDatabaseUrl(url)) return null;
   try {
     _pool = mysql.createPool(url);
     log.info("MySQL2 connection pool created");
@@ -82,7 +83,7 @@ function getPool(): mysql.Pool | null {
 export function getDb() {
   if (_db) return _db;
   const url = process.env.DATABASE_URL;
-  if (!url) return null;
+  if (!isMySqlDatabaseUrl(url)) return null;
   try {
     // Drizzle can connect directly from a URL string
     _db = drizzle(url);

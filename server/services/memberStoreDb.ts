@@ -30,7 +30,6 @@ import {
   type LifecycleTimelineEvent,
   type MemberCardRow,
 } from "../../drizzle/schema";
-import { getPoolDirect } from "../db";
 import type { MemberStoreSnapshot } from "./memberAccountService";
 import { childLogger } from "../_core/logger";
 
@@ -74,6 +73,11 @@ function parseJson<T>(v: unknown, fallback: T): T {
  * unavailable or empty (caller falls back to an empty store or JSON file).
  */
 export async function loadStoreFromDb(): Promise<MemberStoreSnapshot | null> {
+  // Dynamic import breaks the db.ts -> memberAccountService -> memberStoreDb
+  // -> db.ts cycle: db.ts's `let _pool` is still in its temporal dead zone
+  // when the store restores itself at module load, so a static import of
+  // getPoolDirect() throws "Cannot access '_pool' before initialization".
+  const { getPoolDirect } = await import("../db");
   const pool = getPoolDirect();
   if (!pool) return null;
 
@@ -162,6 +166,7 @@ export async function loadStoreFromDb(): Promise<MemberStoreSnapshot | null> {
  * the JSON-file write.
  */
 export async function saveStoreToDb(snapshot: MemberStoreSnapshot): Promise<void> {
+  const { getPoolDirect } = await import("../db");
   const pool = getPoolDirect();
   if (!pool) return;
 
